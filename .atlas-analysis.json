@@ -1,0 +1,105 @@
+{
+  "projectType": "saas",
+  "projectName": "TamborraData",
+  "projectDescription": "Web platform that analyzes and visualizes historical data from the Tamborrada Infantil of Donostia-San Sebastián.",
+  "theme": "mint",
+  "primaryColor": "#2563eb",
+  "lightColor": null,
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/data-visualization",
+              "features/participant-search",
+              "features/statistics-explorer",
+              "features/annual-updates"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "architecture/overview",
+              "architecture/frontend",
+              "architecture/backend",
+              "architecture/database"
+            ]
+          },
+          {
+            "group": "Development",
+            "pages": [
+              "development/setup",
+              "development/mock-data",
+              "development/configuration",
+              "development/deployment"
+            ]
+          },
+          {
+            "group": "Advanced Topics",
+            "pages": [
+              "advanced/react-query",
+              "advanced/seo",
+              "advanced/security"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "api/overview"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/endpoints/years",
+              "api/endpoints/statistics",
+              "api/endpoints/category",
+              "api/endpoints/companies",
+              "api/endpoints/participants"
+            ]
+          },
+          {
+            "group": "Resources",
+            "pages": [
+              "api/errors",
+              "api/response-format"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Interactive data visualizations with Nivo charts",
+    "Historical statistics by year and category",
+    "Participant search across all years",
+    "Automatic annual data updates",
+    "Server-side rendering with Next.js",
+    "PostgreSQL database with Row Level Security",
+    "React Query for state management and caching",
+    "Mock data for local development"
+  ],
+  "publicApiSurface": [
+    "GET /api/years - List available years",
+    "GET /api/statistics?year={year} - Get statistics for a year",
+    "GET /api/category?year={year}&category={category} - Get category details",
+    "GET /api/companies - List all participating schools",
+    "GET /api/participants?name={name}&company={company} - Search participants"
+  ]
+}
