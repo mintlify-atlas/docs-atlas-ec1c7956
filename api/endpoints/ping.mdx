@@ -1,0 +1,164 @@
+---
+title: Health Check
+api: GET /api/ping
+description: Verify that the TamborraData API is operational
+---
+
+## Endpoint
+
+```http
+GET /api/ping
+```http
+
+## Description
+
+A simple health check endpoint that returns the operational status of the TamborraData API. Use this endpoint to verify that the API is running and responsive.
+
+This endpoint is commonly used for:
+- Monitoring and uptime checks
+- Load balancer health probes
+- Integration testing
+- Service discovery
+
+## Authentication
+
+No authentication required. This is a public endpoint.
+
+## Query Parameters
+
+This endpoint does not accept any query parameters.
+
+## Response
+
+<ResponseField name="ok" type="boolean" required>
+  Always `true` when the API is operational
+</ResponseField>
+
+<ResponseField name="message" type="string" required>
+  Confirmation message in Spanish
+</ResponseField>
+
+### Success Response (200 OK)
+
+```json
+{
+  "ok": true,
+  "message": "Tamborradata API funcionando 🎉"
+}
+```http
+
+## Code Examples
+
+<CodeGroup>
+
+```bash cURL
+curl https://tamborradata.com/api/ping
+```http
+
+```javascript JavaScript (Fetch)
+const response = await fetch('https://tamborradata.com/api/ping');
+const data = await response.json();
+
+console.log(data);
+// { ok: true, message: 'Tamborradata API funcionando 🎉' }
+```http
+
+```javascript JavaScript (Axios)
+const axios = require('axios');
+
+const response = await axios.get('https://tamborradata.com/api/ping');
+console.log(response.data);
+// { ok: true, message: 'Tamborradata API funcionando 🎉' }
+```http
+
+```python Python
+import requests
+
+response = requests.get('https://tamborradata.com/api/ping')
+data = response.json()
+
+print(data)
+# {'ok': True, 'message': 'Tamborradata API funcionando 🎉'}
+```http
+
+</CodeGroup>
+
+## Use Cases
+
+### Monitoring Setup
+
+```javascript Uptime Monitor
+async function checkApiHealth() {
+  try {
+    const response = await fetch('https://tamborradata.com/api/ping');
+    const data = await response.json();
+    
+    if (data.ok) {
+      console.log('✅ API is healthy');
+      return true;
+    }
+  } catch (error) {
+    console.error('❌ API is down:', error);
+    return false;
+  }
+}
+
+// Run health check every 5 minutes
+setInterval(checkApiHealth, 5 * 60 * 1000);
+```http
+
+### Integration Test
+
+```javascript Jest Test
+describe('TamborraData API', () => {
+  it('should be operational', async () => {
+    const response = await fetch('https://tamborradata.com/api/ping');
+    const data = await response.json();
+    
+    expect(response.status).toBe(200);
+    expect(data.ok).toBe(true);
+    expect(data.message).toBeDefined();
+  });
+});
+```http
+
+## Implementation Details
+
+**File location**: `app/(backend)/api/ping/route.ts:4`
+
+The endpoint is implemented as a simple Next.js API route that always returns a successful response when the server is running.
+
+```typescript
+// app/api/ping/route.ts
+import { NextResponse } from 'next/server';
+
+export async function GET() {
+  const res = NextResponse.json({
+    ok: true,
+    message: 'Tamborradata API funcionando 🎉',
+  });
+
+  return res;
+}
+```http
+
+<Info>
+This endpoint does not query the database, making it very lightweight and suitable for frequent health checks.
+</Info>
+
+## Response Time
+
+Typical response time: **< 50ms**
+
+The ping endpoint has minimal overhead as it doesn't perform any database operations or complex processing.
+
+## Related Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Years" icon="calendar" href="/api/endpoints/years">
+    Get available years (with database check)
+  </Card>
+  <Card title="API Overview" icon="book" href="/api/overview">
+    Complete API documentation
+  </Card>
+</CardGroup>

@@ -80,6 +80,7 @@
           {
             "group": "Endpoints",
             "pages": [
+              "api/endpoints/ping",
               "api/endpoints/years",
               "api/endpoints/statistics",
               "api/endpoints/category",
