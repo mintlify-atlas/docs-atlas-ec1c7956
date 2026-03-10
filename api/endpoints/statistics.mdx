@@ -1,0 +1,467 @@
+---
+title: Get Statistics
+api: GET /api/statistics
+description: Retrieve complete statistics for a specific year of the Tamborrada Infantil
+---
+
+## Endpoint
+
+```
+GET /api/statistics?year={year}
+```
+
+## Description
+
+Returns comprehensive statistical data for a specified year. The response includes multiple categories of statistics such as top names, school participation, diversity metrics, and more.
+
+This is the primary endpoint for retrieving detailed annual or global statistics.
+
+## Authentication
+
+No authentication required. This is a public endpoint.
+
+## Query Parameters
+
+<ParamField query="year" type="string" required>
+  The year to query. Must be either:
+  - A 4-digit year (e.g., "2024")
+  - The string "global" for all-time statistics
+  
+  Available years can be retrieved from `/api/years`.
+</ParamField>
+
+## Response
+
+<ResponseField name="isUpdating" type="boolean" required>
+  Indicates if the system is currently being updated. When `true`, limited data may be available.
+</ResponseField>
+
+<ResponseField name="year" type="string" required>
+  The year for which statistics are returned.
+</ResponseField>
+
+<ResponseField name="total_categories" type="number" required>
+  Total number of statistical categories included in the response.
+</ResponseField>
+
+<ResponseField name="statistics" type="object" required>
+  Object containing statistics grouped by category. Each category key contains an array of statistic objects with `category`, `public_data`, and `summary` fields.
+</ResponseField>
+
+### Success Response (200 OK)
+
+```json
+{
+  "isUpdating": false,
+  "year": "2024",
+  "total_categories": 21,
+  "statistics": {
+    "topNamesByYear": [
+      {
+        "category": "topNamesByYear",
+        "public_data": [
+          {"name": "Nora", "count": 98},
+          {"name": "Ane", "count": 88},
+          {"name": "Jon", "count": 85}
+        ],
+        "summary": "Nora encabeza el ranking de 2024..."
+      }
+    ],
+    "totalParticipantsByYear": [
+      {
+        "category": "totalParticipantsByYear",
+        "public_data": [{"year": 2024, "count": 5039}],
+        "summary": "En 2024 la festividad contó con 5.039 niños..."
+      }
+    ],
+    "schoolsEvolution": [
+      {
+        "category": "schoolsEvolution",
+        "public_data": [
+          {
+            "total": 1568,
+            "school": "Amara Berri",
+            "years": [
+              {"year": 2018, "count": 214},
+              {"year": 2019, "count": 230}
+            ]
+          }
+        ],
+        "summary": "Amara Berri acumuló la mayor participación..."
+      }
+    ]
+  }
+}
+```
+
+### System Updating Response (200 OK)
+
+During annual data updates (typically in January):
+
+```json
+{
+  "isUpdating": true
+}
+```
+
+### Error Responses
+
+#### Missing Year Parameter (404 Not Found)
+
+```json
+{
+  "error": "El parámetro 'year' es obligatorio"
+}
+```
+
+#### Invalid Year Format (404 Not Found)
+
+```json
+{
+  "error": "El parámetro 'year' debe ser 'global' o un año válido de cuatro dígitos"
+}
+```
+
+#### Year Not Available (404 Not Found)
+
+```json
+{
+  "error": "Año inválido. Años válidos: 2024, 2025, global, ..."
+}
+```
+
+#### Server Error (500 Internal Server Error)
+
+```json
+{
+  "error": "Error al obtener el estado del sistema",
+  "details": "<technical details>"
+}
+```
+
+## Available Categories
+
+The statistics response includes the following categories:
+
+- `topNamesByYear` - Most popular names for the year
+- `topNames` - Most popular names (global)
+- `topSchoolsByYear` - Top participating schools for the year
+- `topSchools` - Top participating schools (global)
+- `topSurnamesByYear` - Most common surnames for the year
+- `topSurnames` - Most common surnames (global)
+- `totalParticipantsByYear` - Total participants for the year
+- `totalParticipants` - Total participants (global)
+- `namesDiversityByYear` - Unique names count for the year
+- `namesDiversity` - Unique names count (global)
+- `surnamesDiversityByYear` - Unique surnames count for the year
+- `surnamesDiversity` - Unique surnames count (global)
+- `newNamesByYear` - New names introduced in the year
+- `newSchoolsByYear` - New schools participating in the year
+- `schoolsEvolution` - School participation evolution over time
+- `commonNameBySchool` - Most common name per school (global)
+- `commonNameBySchoolByYear` - Most common name per school for the year
+- `mostConstantSchools` - Schools with most consistent participation
+- `longestNames` - Longest names recorded
+- `intro` - Introductory text for the year
+- `outro` - Concluding text for the year
+
+## Examples
+
+### cURL
+
+```bash
+# Get statistics for 2024
+curl "https://tamborradata.com/api/statistics?year=2024"
+
+# Get global statistics
+curl "https://tamborradata.com/api/statistics?year=global"
+```
+
+### JavaScript (Fetch)
+
+```javascript
+async function getStatistics(year) {
+  const response = await fetch(
+    `https://tamborradata.com/api/statistics?year=${year}`
+  );
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error);
+  }
+  
+  const data = await response.json();
+  
+  if (data.isUpdating) {
+    console.log('System is updating, limited data available');
+    return null;
+  }
+  
+  return data;
+}
+
+// Usage
+const stats = await getStatistics('2024');
+console.log(`Year: ${stats.year}`);
+console.log(`Categories: ${stats.total_categories}`);
+console.log('Top names:', stats.statistics.topNamesByYear);
+```
+
+### JavaScript (Axios)
+
+```javascript
+const axios = require('axios');
+
+try {
+  const { data } = await axios.get(
+    'https://tamborradata.com/api/statistics',
+    { params: { year: '2024' } }
+  );
+  
+  if (data.isUpdating) {
+    console.log('System is being updated');
+  } else {
+    console.log('Statistics:', data.statistics);
+  }
+} catch (error) {
+  console.error('Error:', error.response?.data?.error);
+}
+```
+
+### Python
+
+```python
+import requests
+
+def get_statistics(year):
+    response = requests.get(
+        'https://tamborradata.com/api/statistics',
+        params={'year': year}
+    )
+    
+    if response.status_code == 200:
+        data = response.json()
+        if data.get('isUpdating'):
+            print('System is updating')
+            return None
+        return data
+    else:
+        error = response.json()
+        raise Exception(error['error'])
+
+# Usage
+try:
+    stats = get_statistics('2024')
+    if stats:
+        print(f"Year: {stats['year']}")
+        print(f"Categories: {stats['total_categories']}")
+except Exception as e:
+    print(f"Error: {e}")
+```
+
+### TypeScript
+
+```typescript
+type StatisticsResponse = {
+  isUpdating: boolean;
+  year: string;
+  total_categories: number;
+  statistics: Record<string, CategoryData[]>;
+};
+
+type CategoryData = {
+  category: string;
+  public_data: any;
+  summary: string;
+};
+
+async function getStatistics(year: string): Promise<StatisticsResponse | null> {
+  const response = await fetch(
+    `https://tamborradata.com/api/statistics?year=${year}`
+  );
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error);
+  }
+  
+  const data: StatisticsResponse = await response.json();
+  
+  if (data.isUpdating) {
+    return null;
+  }
+  
+  return data;
+}
+
+// Usage with error handling
+try {
+  const stats = await getStatistics('2024');
+  if (stats) {
+    console.log(`Found ${stats.total_categories} categories`);
+    
+    // Access specific category
+    const topNames = stats.statistics.topNamesByYear?.[0];
+    console.log('Top names:', topNames?.public_data);
+  }
+} catch (error) {
+  console.error('Failed to fetch statistics:', error);
+}
+```
+
+## Implementation Details
+
+### Source Code Reference
+
+The endpoint is implemented in:
+- Route: `app/(backend)/api/statistics/route.ts:7`
+- Service: `app/(backend)/api/statistics/services/statistics.service.ts:7`
+- Repository: `app/(backend)/api/statistics/repositories/statistics.repo.ts:6`
+- Validation: `app/(backend)/api/statistics/dtos/statistics.schema.ts:5`
+
+### Data Flow
+
+1. Extract `year` query parameter
+2. Validate year format and existence (via `checkParams`)
+3. Check system update status (via `getSysStatus`)
+4. If updating, return `{isUpdating: true}`
+5. Query `statistics` table for the year
+6. Group results by category (via `groupBy` utility)
+7. Return formatted response
+
+### Database Query
+
+The endpoint executes:
+
+```sql
+SELECT category, public_data, summary
+FROM statistics
+WHERE year = $1
+ORDER BY public_data DESC
+LIMIT 30;
+```
+
+## Use Cases
+
+### 1. Display Year Overview
+
+```javascript
+async function displayYearOverview(year) {
+  const data = await getStatistics(year);
+  
+  if (!data) {
+    document.body.innerHTML = '<p>System is updating...</p>';
+    return;
+  }
+  
+  const total = data.statistics.totalParticipantsByYear?.[0];
+  const topName = data.statistics.topNamesByYear?.[0];
+  
+  document.body.innerHTML = `
+    <h1>${data.year}</h1>
+    <p>Total participants: ${total?.public_data[0]?.count}</p>
+    <p>Most popular name: ${topName?.public_data[0]?.name}</p>
+  `;
+}
+```
+
+### 2. Compare Years
+
+```javascript
+async function compareYears(year1, year2) {
+  const [data1, data2] = await Promise.all([
+    getStatistics(year1),
+    getStatistics(year2)
+  ]);
+  
+  const participants1 = data1.statistics.totalParticipantsByYear[0].public_data[0].count;
+  const participants2 = data2.statistics.totalParticipantsByYear[0].public_data[0].count;
+  
+  console.log(`${year1}: ${participants1} participants`);
+  console.log(`${year2}: ${participants2} participants`);
+  console.log(`Difference: ${participants2 - participants1}`);
+}
+```
+
+### 3. Extract Specific Category
+
+```javascript
+async function getTopNames(year) {
+  const data = await getStatistics(year);
+  const topNames = data.statistics.topNamesByYear?.[0];
+  
+  if (topNames) {
+    return topNames.public_data.slice(0, 10); // Top 10
+  }
+  
+  return [];
+}
+
+const top10 = await getTopNames('2024');
+console.log('Top 10 names:', top10);
+```
+
+## Notes
+
+<Note>
+  When `isUpdating` is `true`, the response contains only this field. Check this before accessing other properties.
+</Note>
+
+<Warning>
+  The `public_data` field structure varies by category. Always check the category type before processing data.
+</Warning>
+
+<Info>
+  Global statistics (year="global") aggregate data across all available years. Some categories may not be available for global scope.
+</Info>
+
+## Performance
+
+- **Response Time**: 200-500ms (depending on year)
+- **Payload Size**: 50-200 KB (varies by year)
+- **Database Query**: Single query with GROUP BY
+- **Caching**: Safe to cache for 24 hours (updates are annual)
+
+## Related Endpoints
+
+- [GET /api/years](/api/endpoints/years) - Get available years to query
+- [GET /api/category](/api/endpoints/category) - Get specific category details
+
+## Error Handling
+
+```javascript
+async function fetchStatisticsSafely(year) {
+  try {
+    // Validate year format client-side
+    if (year !== 'global' && !/^\d{4}$/.test(year)) {
+      throw new Error('Invalid year format');
+    }
+    
+    const response = await fetch(
+      `https://tamborradata.com/api/statistics?year=${year}`
+    );
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error);
+    }
+    
+    const data = await response.json();
+    
+    // Handle updating state
+    if (data.isUpdating) {
+      return { updating: true, data: null };
+    }
+    
+    // Validate response structure
+    if (!data.statistics || data.total_categories === 0) {
+      throw new Error('No statistics available');
+    }
+    
+    return { updating: false, data };
+  } catch (error) {
+    console.error('Error fetching statistics:', error);
+    throw error;
+  }
+}
+```

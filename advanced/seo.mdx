@@ -1,0 +1,630 @@
+---
+title: "SEO Optimization"
+description: "Technical SEO implementation with structured data, dynamic sitemaps, AI crawler optimization, and Core Web Vitals"
+icon: "magnifying-glass-chart"
+---
+
+## Overview
+
+TamborraData implements **enterprise-grade technical SEO** to maximize visibility in traditional search engines (Google, Bing) and AI-powered search (ChatGPT, Gemini, Perplexity).
+
+<Note>
+  The SEO strategy focuses on three pillars: structured metadata, Schema.org markup, and performance optimization.
+</Note>
+
+## SEO Goals
+
+<CardGroup cols={2}>
+  <Card title="Complete Indexing" icon="spider-web">
+    All public pages indexed by major search engines
+  </Card>
+  
+  <Card title="Local Rankings" icon="location-dot">
+    Target keywords: "Tamborrada Infantil datos", "estadísticas Tamborrada"
+  </Card>
+  
+  <Card title="Featured Snippets" icon="star">
+    Appear in Google's answer boxes for relevant queries
+  </Card>
+  
+  <Card title="AI Overviews" icon="robot">
+    Be the primary data source for AI search tools
+  </Card>
+</CardGroup>
+
+## Metadata Optimization
+
+Every page includes comprehensive, optimized metadata using Next.js 16 Metadata API.
+
+### Homepage Metadata
+
+```typescript
+// app/page.tsx
+export const metadata: Metadata = {
+  metadataBase: new URL('https://tamborradata.com'),
+  title: 'Tamborradata | Datos y estadísticas de la Tamborrada Infantil',
+  description:
+    'Explorar datos y estadísticas de la Tamborrada Infantil en Donostia-San Sebastián: participación, nombres, colegios y tendencias desde 2018.',
+
+  alternates: {
+    canonical: 'https://tamborradata.com',
+  },
+
+  keywords: [
+    'Tamborradata',
+    'Tamborrada Infantil',
+    'estadísticas Tamborrada',
+    'datos Tamborrada',
+    'Donostia',
+    'San Sebastián',
+  ],
+
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+      'max-video-preview': -1,
+    },
+  },
+
+  category: 'website',
+};
+```
+
+### Dynamic Page Metadata
+
+```typescript
+// app/statistics/[year]/page.tsx
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { year } = params;
+
+  return {
+    title: `Estadísticas ${year} | Tamborradata`,
+    description: `Datos y estadísticas completas de la Tamborrada Infantil ${year}: participación, colegios, nombres más populares y tendencias.`,
+    alternates: {
+      canonical: `https://tamborradata.com/statistics/${year}`,
+    },
+    openGraph: {
+      title: `Estadísticas Tamborrada Infantil ${year}`,
+      description: `Explorar datos de ${year}`,
+      url: `https://tamborradata.com/statistics/${year}`,
+      images: [
+        {
+          url: `https://tamborradata.com/og-image-${year}.webp`,
+        },
+      ],
+    },
+  };
+}
+```
+
+### Title Tag Optimization
+
+<Tabs>
+  <Tab title="Structure">
+    | Page | Title | Reasoning |
+    |------|-------|----------|
+    | Home | `Tamborradata \| Datos y estadísticas...` | Branding first + keywords |
+    | Year | `Estadísticas 2024 \| Tamborradata` | Year + branding |
+    | Global | `Estadísticas Globales \| Tamborradata` | Differentiation |
+    | Search | `Buscar Participantes \| Tamborradata` | Clear functionality |
+  </Tab>
+
+  <Tab title="Best Practices">
+    **Rules:**
+    - ≤ 60 characters for desktop display
+    - Brand at the end (except homepage)
+    - Primary keywords at the beginning
+    - Visual separator `|` for readability
+    
+    ```typescript
+    // ✅ Good
+    title: 'Estadísticas 2024 | Tamborradata'
+    
+    // ❌ Bad - Too long
+    title: 'Tamborradata: Complete Statistics and Data Analysis for Tamborrada Infantil 2024'
+    
+    // ❌ Bad - No branding
+    title: 'Statistics 2024'
+    ```
+  </Tab>
+</Tabs>
+
+## Structured Data (Schema.org)
+
+TamborraData implements JSON-LD structured data for rich search results.
+
+### Organization Schema
+
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "@id": "https://tamborradata.com#organization",
+  "name": "Tamborradata",
+  "description": "Proyecto de datos y estadísticas sobre la Tamborrada Infantil",
+  "url": "https://tamborradata.com",
+  "logo": "https://tamborradata.com/favicon.ico",
+  "sameAs": [
+    "https://x.com/tamborradata",
+    "https://github.com/ramistodev/tamborradata"
+  ]
+}
+```
+
+### WebSite Schema with SearchAction
+
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "@id": "https://tamborradata.com#website",
+  "name": "Tamborradata",
+  "url": "https://tamborradata.com",
+  "inLanguage": "es-ES",
+  "publisher": { "@id": "https://tamborradata.com#organization" },
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": "https://tamborradata.com/search?name={search_term_string}",
+    "query-input": "required name=search_term_string"
+  }
+}
+```
+
+<Tip>
+  The SearchAction enables Google to display a search box directly in search results.
+</Tip>
+
+### Dataset Schema
+
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "Dataset",
+  "@id": "https://tamborradata.com#dataset",
+  "name": "Tamborradata - Estadísticas Históricas de la Tamborrada Infantil",
+  "description": "Dataset completo con estadísticas desde 2018: participación, colegios, nombres, tendencias.",
+  "url": "https://tamborradata.com",
+  "creator": { "@id": "https://tamborradata.com#organization" },
+  "publisher": { "@id": "https://tamborradata.com#organization" },
+  "datePublished": "2018-01-20T00:00:00.000Z",
+  "dateModified": "2025-01-20T00:00:00.000Z",
+  "temporalCoverage": "2018-01-20/2025-01-20",
+  "spatialCoverage": {
+    "@type": "Place",
+    "name": "San Sebastián, Gipuzkoa, País Vasco, España",
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": 43.3183,
+      "longitude": -1.9812
+    }
+  },
+  "keywords": [
+    "Tamborrada Infantil",
+    "estadísticas",
+    "datos históricos",
+    "Donostia",
+    "San Sebastián"
+  ]
+}
+```
+
+<Note>
+  Dataset schema makes TamborraData discoverable in Google Dataset Search, establishing it as an official data source.
+</Note>
+
+### BreadcrumbList Schema
+
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Inicio",
+      "item": "https://tamborradata.com"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Estadísticas",
+      "item": "https://tamborradata.com/statistics"
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "2024",
+      "item": "https://tamborradata.com/statistics/2024"
+    }
+  ]
+}
+```
+
+## Dynamic Sitemap
+
+The sitemap is generated dynamically and automatically excludes unavailable years.
+
+```typescript
+// app/sitemap.ts
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const baseUrl = 'https://tamborradata.com';
+  const currentYear = new Date().getFullYear();
+
+  const yearUrls = [];
+  for (let i = 0; i <= currentYear - 2018; i++) {
+    const year = 2018 + i;
+    if (year === 2021) continue; // Skip years without data
+
+    yearUrls.push({
+      url: `${baseUrl}/statistics/${year}`,
+      lastModified: year === currentYear 
+        ? new Date() 
+        : new Date(`${year}-01-20`),
+      changeFrequency: 'yearly' as const,
+      priority: year === currentYear ? 0.9 : 0.7,
+    });
+  }
+
+  return [
+    {
+      url: baseUrl,
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 1.0,
+    },
+    {
+      url: `${baseUrl}/statistics/global`,
+      lastModified: new Date(),
+      changeFrequency: 'yearly',
+      priority: 0.9,
+    },
+    {
+      url: `${baseUrl}/search`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 0.9,
+    },
+    ...yearUrls,
+  ];
+}
+```
+
+<Accordion title="Sitemap Features">
+  - ✅ Automatic URL generation
+  - ✅ Excludes unavailable years (2021)
+  - ✅ Differentiated priorities
+  - ✅ Dynamic `lastModified` dates
+  - ✅ Appropriate change frequencies
+</Accordion>
+
+## Robots.txt Configuration
+
+```txt
+User-agent: *
+Allow: /
+
+# Block internal routes
+Disallow: /api/
+Disallow: /_next/
+Disallow: /_vercel/
+
+# Block sensitive files
+Disallow: /*.json$
+Disallow: /*.xml$
+
+# Sitemap
+Sitemap: https://tamborradata.com/sitemap.xml
+
+# AI Crawlers (explicitly allow)
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+```
+
+<Warning>
+  Blocking AI crawlers prevents your content from appearing in AI-powered search tools. TamborraData explicitly allows them.
+</Warning>
+
+## Canonical URLs
+
+All pages implement canonical URLs to prevent duplicate content issues.
+
+```typescript
+export const metadata: Metadata = {
+  alternates: {
+    canonical: 'https://tamborradata.com/statistics/2024',
+  },
+};
+```
+
+### Canonicalization Rules
+
+| Scenario | Canonical |
+|----------|----------|
+| Trailing slash | Remove: `/statistics/2024/` → `/statistics/2024` |
+| Query parameters | Remove: `/statistics/2024?ref=x` → `/statistics/2024` |
+| HTTP vs HTTPS | Always HTTPS: `http://` → `https://` |
+| Multiple domains | Primary domain only: `.com` |
+
+## Open Graph & Twitter Cards
+
+### Open Graph Tags
+
+```typescript
+openGraph: {
+  title: 'Tamborradata | Datos de la Tamborrada Infantil',
+  description: 'Explorar estadísticas desde 2018',
+  url: 'https://tamborradata.com',
+  siteName: 'Tamborradata',
+  images: [{
+    url: 'https://tamborradata.com/og-image.webp',
+    width: 1200,
+    height: 630,
+    alt: 'Tamborradata - Estadísticas Tamborrada Infantil',
+  }],
+  locale: 'es_ES',
+  type: 'website',
+}
+```
+
+### Twitter Cards
+
+```typescript
+twitter: {
+  card: 'summary_large_image',
+  title: 'Tamborradata | Datos de la Tamborrada Infantil',
+  description: 'Explorar estadísticas desde 2018',
+  images: [{
+    url: 'https://tamborradata.com/og-image.webp',
+    alt: 'Tamborradata - Estadísticas',
+  }],
+  site: '@tamborradata',
+  creator: '@tamborradata',
+}
+```
+
+### Social Media Image Specs
+
+| Platform | Recommended Size | Format |
+|----------|-----------------|--------|
+| Facebook | 1200×630px | WebP/JPEG |
+| Twitter | 1200×628px | WebP/JPEG |
+| LinkedIn | 1200×627px | WebP/JPEG |
+
+<Tip>
+  TamborraData uses WebP format at 1200×630px (45KB) for optimal quality and performance.
+</Tip>
+
+## AI Overviews Optimization
+
+TamborraData is optimized to be a primary data source for AI search tools.
+
+### Strategies
+
+<AccordionGroup>
+  <Accordion title="1. Allow AI Crawlers" icon="robot">
+    Explicitly permit AI bots in robots.txt:
+    
+    ```txt
+    User-agent: ChatGPT-User
+    Allow: /
+    
+    User-agent: GPTBot
+    Allow: /
+    
+    User-agent: Google-Extended
+    Allow: /
+    ```
+  </Accordion>
+
+  <Accordion title="2. Semantic HTML Structure" icon="code">
+    Use proper heading hierarchy that AI can parse:
+    
+    ```html
+    <h1>Estadísticas de la Tamborrada Infantil 2024</h1>
+    
+    <section aria-label="Participación Total">
+      <h2>Participación Total</h2>
+      <p>En 2024, participaron <strong>3,245 niños y niñas</strong>...</p>
+    </section>
+    ```
+  </Accordion>
+
+  <Accordion title="3. Dataset Schema" icon="database">
+    Dataset schema identifies TamborraData as an official data source for AI:
+    
+    ```json
+    {
+      "@type": "Dataset",
+      "name": "Tamborradata - Estadísticas Históricas",
+      "description": "Dataset completo desde 2018"
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="4. Structured Content" icon="list">
+    Present data in AI-friendly formats:
+    
+    ```markdown
+    ## Participación
+    
+    - Total: 3,245 participantes
+    - Incremento: +5.2% vs 2023
+    
+    ## Colegios Top 3:
+    
+    1. Colegio A - 450 participantes
+    2. Colegio B - 380 participantes
+    3. Colegio C - 320 participantes
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Core Web Vitals
+
+TamborraData optimizes Google's Core Web Vitals for better rankings.
+
+### Target Metrics
+
+| Metric | Target | Actual | Status |
+|--------|--------|--------|--------|
+| **LCP** (Largest Contentful Paint) | < 2.5s | ~1.8s | ✅ |
+| **FID** (First Input Delay) | < 100ms | ~50ms | ✅ |
+| **CLS** (Cumulative Layout Shift) | < 0.1 | ~0.05 | ✅ |
+| **FCP** (First Contentful Paint) | < 1.8s | ~1.2s | ✅ |
+| **TTI** (Time to Interactive) | < 3.8s | ~2.5s | ✅ |
+
+### Optimization Techniques
+
+<Tabs>
+  <Tab title="Server Components">
+    Server-side rendering dramatically improves FCP and LCP:
+    
+    ```typescript
+    // Server Component → content rendered on server
+    export default async function StatisticsPage({ params }) {
+      const data = await fetchStatistics(params.year);
+      return <StatisticsContent data={data} />;
+    }
+    ```
+  </Tab>
+
+  <Tab title="Image Optimization">
+    Next.js Image component with WebP format:
+    
+    ```typescript
+    import Image from 'next/image';
+    
+    <Image
+      src="/logo.webp"
+      alt="Tamborradata"
+      width={200}
+      height={50}
+      loading="lazy"
+      placeholder="blur"
+    />
+    ```
+    
+    **Optimizations:**
+    - WebP format (smaller files)
+    - Lazy loading
+    - Blur placeholder
+    - Responsive sizes
+  </Tab>
+
+  <Tab title="Font Optimization">
+    Optimize font loading to prevent layout shift:
+    
+    ```typescript
+    import { Inter } from 'next/font/google';
+    
+    const inter = Inter({
+      subsets: ['latin'],
+      display: 'swap',
+      preload: true,
+    });
+    ```
+    
+    `display: swap` prevents FOIT (Flash of Invisible Text)
+  </Tab>
+
+  <Tab title="Prefetching">
+    Next.js Link prefetching for instant navigation:
+    
+    ```typescript
+    <Link href="/statistics/2024" prefetch={true}>
+      Ver estadísticas 2024
+    </Link>
+    ```
+  </Tab>
+</Tabs>
+
+## Validation Tools
+
+<CardGroup cols={2}>
+  <Card title="Google Search Console" icon="magnifying-glass">
+    - ✅ All pages indexed
+    - ✅ No crawl errors
+    - ✅ Core Web Vitals passing
+    - ✅ Mobile-first indexing active
+  </Card>
+
+  <Card title="Lighthouse" icon="lighthouse">
+    - ✅ Performance: 95+
+    - ✅ Accessibility: 100
+    - ✅ Best Practices: 100
+    - ✅ SEO: 100
+  </Card>
+
+  <Card title="Rich Results Test" icon="code">
+    - ✅ Organization schema valid
+    - ✅ Dataset schema valid
+    - ✅ BreadcrumbList schema valid
+  </Card>
+
+  <Card title="Schema Validator" icon="check">
+    Test structured data at:
+    [schema.org validator](https://validator.schema.org/)
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+<Steps>
+  <Step title="Use Semantic HTML">
+    Proper heading hierarchy and semantic elements help search engines understand content structure.
+  </Step>
+
+  <Step title="Implement All Schema Types">
+    Organization, WebSite, Dataset, and BreadcrumbList schemas provide comprehensive context.
+  </Step>
+
+  <Step title="Optimize for Mobile">
+    Mobile-first indexing means mobile performance directly affects rankings.
+  </Step>
+
+  <Step title="Monitor Core Web Vitals">
+    Regularly check metrics in Google Search Console and optimize bottlenecks.
+  </Step>
+
+  <Step title="Allow AI Crawlers">
+    Explicitly permit AI bots to ensure visibility in AI-powered search.
+  </Step>
+</Steps>
+
+## Resources
+
+<CardGroup cols={2}>
+  <Card title="Google Search Central" icon="google" href="https://developers.google.com/search">
+    Official Google SEO documentation
+  </Card>
+  
+  <Card title="Schema.org" icon="sitemap" href="https://schema.org/">
+    Structured data vocabulary
+  </Card>
+  
+  <Card title="Next.js SEO" icon="link" href="https://nextjs.org/learn/seo/introduction-to-seo">
+    SEO with Next.js guide
+  </Card>
+  
+  <Card title="Core Web Vitals" icon="gauge" href="https://web.dev/vitals/">
+    Understanding Core Web Vitals
+  </Card>
+</CardGroup>

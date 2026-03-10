@@ -1,0 +1,573 @@
+---
+title: "Statistics Explorer"
+description: "Browse statistics by year and category with dynamic navigation"
+icon: "magnifying-glass-chart"
+---
+
+The Statistics Explorer allows users to browse Tamborrada Infantil data by year (2018-present) or view global statistics across all years. It features dynamic year selection, category-based statistics, and seamless navigation.
+
+## Overview
+
+Key features of the statistics explorer:
+
+<CardGroup cols={2}>
+  <Card title="Year Selection" icon="calendar">
+    Browse statistics for any year from 2018 to present
+  </Card>
+  <Card title="Global View" icon="globe">
+    View aggregated statistics across all years
+  </Card>
+  <Card title="Category Tabs" icon="table-columns">
+    Multiple statistical categories per year
+  </Card>
+  <Card title="Dynamic Loading" icon="spinner">
+    Server-side rendering with React Query hydration
+  </Card>
+</CardGroup>
+
+## Navigation System
+
+### Header Navigation
+
+The header includes a dynamic year selector dropdown:
+
+```tsx title="app/(frontend)/components/Header/components/Desktop.tsx"
+import Link from 'next/link';
+import { useStatisticsY } from '../../../hooks/useStatisticsY';
+import { useDesktopMenu } from '../hooks/useDesktopMenu';
+import { motion } from 'framer-motion';
+
+export function Desktop() {
+  const { pathname } = useHeader();
+  const { years } = useStatisticsY();
+  const { yearsShow, toggleYearsShow } = useDesktopMenu();
+
+  return (
+    <nav aria-label="Navegación principal" className="flex items-center justify-center gap-7">
+      {/* Title */}
+      <Link href="/" className="text-2xl font-semibold">
+        Tamborradata
+      </Link>
+
+      {/* Statistics dropdown */}
+      <div className="relative group">
+        <button
+          onClick={() => toggleYearsShow()}
+          className="text-lg font-medium cursor-pointer hover:text-(--eye-catching-text)"
+        >
+          Estadísticas
+        </button>
+
+        {/* Year selector */}
+        {yearsShow && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute top-full mt-2"
+          >
+            <ul className="grid grid-cols-[repeat(auto-fit,minmax(70px,1fr))] gap-2 bg-(--color-header) border rounded-lg py-4 px-6">
+              <li>
+                <Link
+                  href="/statistics/global"
+                  className="text-lg block hover:text-(--eye-catching-text)"
+                >
+                  Global
+                </Link>
+              </li>
+              {years?.map((year: number) => (
+                <li key={year}>
+                  <Link
+                    href={`/statistics/${year}`}
+                    className="text-lg block hover:text-(--eye-catching-text)"
+                  >
+                    {year}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </motion.div>
+        )}
+      </div>
+
+      {/* Search link */}
+      <Link href="/search" className="text-lg font-medium">
+        Buscar participante
+      </Link>
+    </nav>
+  );
+}
+```
+
+**File location**: `app/(frontend)/components/Header/components/Desktop.tsx:7`
+
+<Note>
+The year selector is populated dynamically from the `/api/years` endpoint, ensuring only available years are shown.
+</Note>
+
+### Year Dropdown Hook
+
+```tsx title="hooks/useDesktopMenu.ts"
+import { useState } from 'react';
+
+export function useDesktopMenu() {
+  const [yearsShow, setYearsShow] = useState(false);
+
+  function toggleYearsShow() {
+    setYearsShow((prev) => !prev);
+  }
+
+  return {
+    yearsShow,
+    toggleYearsShow
+  };
+}
+```
+
+**File location**: `app/(frontend)/components/Header/hooks/useDesktopMenu.ts:3`
+
+## Year Statistics Page
+
+### Page Structure
+
+Each year has a dedicated dynamic route:
+
+```
+/statistics/2024  → Statistics for 2024
+/statistics/2023  → Statistics for 2023
+/statistics/2022  → Statistics for 2022
+...
+```
+
+### Page Component
+
+```tsx title="app/(frontend)/statistics/[year]/page.tsx"
+import type { Metadata } from 'next';
+import { YearPageContent } from './YearPageContent';
+import { YearStructuredData } from './YearStructuredData';
+
+export async function generateMetadata({
+  params
+}: {
+  params: Promise<{ year: string }>;
+}): Promise<Metadata> {
+  const { year } = await params;
+  const pageTitle = `Estadísticas de la Tamborrada Infantil ${year}`;
+  const pageDescription = `Análisis de la Tamborrada Infantil ${year}: participantes, nombres más comunes, colegios destacados y tendencias anuales.`;
+  const canonicalUrl = `https://tamborradata.com/statistics/${year}`;
+
+  return {
+    title: pageTitle,
+    description: pageDescription,
+    alternates: { canonical: canonicalUrl },
+    openGraph: {
+      title: pageTitle,
+      description: pageDescription,
+      url: canonicalUrl,
+      type: 'article'
+    }
+  };
+}
+
+export default async function YearPage({ params }: { params: Promise<{ year: string }> }) {
+  const { year } = await params;
+
+  return (
+    <>
+      <YearStructuredData year={year} />
+      <YearPageContent />
+    </>
+  );
+}
+```
+
+**File location**: `app/(frontend)/statistics/[year]/page.tsx:6`
+
+### Content Component
+
+```tsx title="app/(frontend)/statistics/[year]/YearPageContent.tsx"
+'use client';
+import Link from 'next/link';
+import ReactMarkdown from 'react-markdown';
+import { useYears } from './hooks/useYears';
+import {
+  NamesSurnamesDiversity,
+  CommonNamesBySchool,
+  TotalParticipants,
+  TopSurnames,
+  NewSchools,
+  TopSchools,
+  TopNames,
+  NewNames
+} from './components';
+
+export function YearPageContent() {
+  const { stats, year } = useYears();
+
+  return (
+    <article className="w-full flex flex-col gap-6" aria-labelledby="year-page-title">
+      <h1 id="year-page-title" className="text-2xl md:text-3xl font-bold">
+        <span className="hidden md:block">Estadísticas de la Tamborrada Infantil {year}</span>
+        <span className="block md:hidden">Tamborrada Infantil {year}</span>
+      </h1>
+
+      <div className="w-full text-sm sm:text-md md:text-base flex flex-col gap-3">
+        <ReactMarkdown>{stats.intro[0]?.summary}</ReactMarkdown>
+      </div>
+
+      <hr className="w-full border border-(--color-border)" />
+
+      {/* Statistics categories */}
+      <TopNames />
+      <TopSurnames />
+      <NewNames />
+      <NamesSurnamesDiversity />
+      <TopSchools />
+      <NewSchools />
+      <CommonNamesBySchool />
+      <TotalParticipants />
+
+      <hr className="w-full border border-(--color-border)" />
+
+      <div className="w-full text-sm sm:text-md md:text-base flex flex-col gap-3">
+        <ReactMarkdown>{stats.outro[0]?.summary}</ReactMarkdown>
+      </div>
+    </article>
+  );
+}
+```
+
+**File location**: `app/(frontend)/statistics/[year]/YearPageContent.tsx:18`
+
+## Statistical Categories
+
+Each year page displays multiple statistical categories:
+
+### Available Categories
+
+<Tabs>
+  <Tab title="Names">
+    **Top Names** (`TopNames`)
+    - Most common first names
+    - Top 15 with chart/table toggle
+    - Shows count per name
+    
+    **New Names** (`NewNames`)
+    - Names that appeared for the first time this year
+    - Highlights cultural trends
+  </Tab>
+  
+  <Tab title="Surnames">
+    **Top Surnames** (`TopSurnames`)
+    - Most common surnames
+    - Reflects regional family patterns
+    - Chart/table visualization
+  </Tab>
+  
+  <Tab title="Schools">
+    **Top Schools** (`TopSchools`)
+    - Schools with most participants
+    - Shows participation trends
+    
+    **New Schools** (`NewSchools`)
+    - First-time participating schools
+    - Growth indicator
+  </Tab>
+  
+  <Tab title="Analysis">
+    **Name/Surname Diversity** (`NamesSurnamesDiversity`)
+    - Diversity metrics and trends
+    - Unique names vs. total participants
+    
+    **Common Names by School** (`CommonNamesBySchool`)
+    - Most popular name per school
+    - Cross-school comparisons
+  </Tab>
+</Tabs>
+
+### Category Component Structure
+
+All categories follow the same pattern:
+
+```tsx title="Example: TopNames component"
+import ReactMarkdown from 'react-markdown';
+import { useTopNames } from './hooks/useTopNames';
+import { TopNamesTable } from './components/TopNamesTable';
+import { hasData } from '@/app/(frontend)/helpers/hasData';
+import dynamic from 'next/dynamic';
+
+const TopNamesChart = dynamic(
+  () => import('./components/TopNamesChart').then((mod) => mod.TopNamesChart),
+  { ssr: false, loading: () => <LoadingChart /> }
+);
+
+export function TopNames() {
+  const { topNamesStats, chart, showChart } = useTopNames();
+
+  if (!hasData(topNamesStats)) return null;
+
+  return (
+    <section className="w-full">
+      <h2 className="text-lg md:text-2xl font-bold">
+        Nombres mas repetidos —{' '}
+        <span className="text-sm rounded p-1 bg-(--color-primary)">
+          {topNamesStats[0].category}
+        </span>
+      </h2>
+      
+      <article className="flex flex-col items-start justify-center py-5">
+        <button
+          onClick={showChart}
+          className="hidden md:block py-1 px-3 mb-3 rounded cursor-pointer"
+        >
+          {chart ? 'Ver tabla' : 'Ver gráfico'}
+        </button>
+        {chart ? <TopNamesChart {...useTopNames()} /> : <TopNamesTable {...useTopNames()} />}
+      </article>
+      
+      <div className="w-full text-sm flex flex-col gap-3">
+        <ReactMarkdown>{topNamesStats[0].summary}</ReactMarkdown>
+      </div>
+    </section>
+  );
+}
+```
+
+**File location**: `app/(frontend)/statistics/[year]/components/TopNames/TopNames.tsx:14`
+
+## Global Statistics
+
+### Global Page Route
+
+The global statistics page aggregates data across all years:
+
+```
+/statistics/global  → All-time statistics
+```
+
+### Global Page Component
+
+```tsx title="app/(frontend)/statistics/global/page.tsx"
+import { Metadata } from 'next';
+import { GlobalStructuredData } from './GlobalStructuredData';
+import { GlobalPageContent } from './GlobalPageContent';
+
+const pageTitle = 'Estadísticas globales de la Tamborrada Infantil';
+const pageDescription = 'Análisis global de la Tamborrada Infantil desde 2018: evolución de nombres, colegios, participación y tendencias culturales año a año.';
+
+export const metadata: Metadata = {
+  title: pageTitle,
+  description: pageDescription,
+  alternates: { canonical: 'https://tamborradata.com/statistics/global' }
+};
+
+export default function GlobalPage() {
+  return (
+    <>
+      <GlobalStructuredData />
+      <GlobalPageContent />
+    </>
+  );
+}
+```
+
+**File location**: `app/(frontend)/statistics/global/page.tsx:4`
+
+### Global Categories
+
+Global statistics include:
+
+- **Total Participants Evolution** - Participation trends over time (line chart)
+- **Top Names (All-Time)** - Most popular names across all years
+- **Top Surnames (All-Time)** - Most common surnames historically
+- **Top Schools** - Schools with highest participation
+- **Schools Evolution** - How participation changed over time
+- **Most Constant Schools** - Schools that participated every year
+- **Longest Names** - Participants with longest names
+- **Common Name by School** - Most popular name per school (global)
+
+<Info>
+Global statistics use line charts to show trends over time, while year-specific stats use bar charts for single-year comparisons.
+</Info>
+
+## Data Fetching
+
+### React Query Hook
+
+```tsx title="app/(frontend)/statistics/[year]/hooks/useYears.ts"
+import { useStatisticsQuery } from '@/app/(frontend)/hooks/query/useStatisticsQuery';
+import { useParams } from 'next/navigation';
+import { Statistics } from '../types/types';
+
+export function useYears() {
+  const { year }: { year: string } = useParams();
+  const { data: statistics, isLoading, isError, error } = useStatisticsQuery<Statistics>(year);
+
+  return {
+    year,
+    statistics,
+    stats: statistics?.statistics,
+    isLoading,
+    isError,
+    error,
+    isUpdating: statistics?.isUpdating
+  };
+}
+```
+
+**File location**: `app/(frontend)/statistics/[year]/hooks/useYears.ts:5`
+
+### Query Configuration
+
+```tsx title="hooks/query/useStatisticsQuery.ts"
+export function useStatisticsQuery<T extends StatsResponse>(year: string) {
+  return useQuery({
+    queryKey: queryKeys.statistics(year),
+    queryFn: ({ signal }) => fetchStatistics<T>(year, signal),
+    enabled: Boolean(year),
+    staleTime: Infinity,  // Historical data never changes
+    gcTime: Infinity,  // Keep in cache forever
+    retry: 0,
+    refetchOnWindowFocus: (query) => query.state.data?.isUpdating === true,
+    refetchInterval: (query) => (query.state.data?.isUpdating ? 3000 : false)
+  });
+}
+```
+
+<Note>
+**Infinite cache**: Historical statistics are cached forever since they don't change. See [Annual Updates](/features/annual-updates) for the `isUpdating` system.
+</Note>
+
+## Loading States
+
+### Page Loader
+
+```tsx title="components/loaders/LoadingPage.tsx"
+export function LoadingPage() {
+  return (
+    <div className="w-full h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-(--color-primary)" />
+    </div>
+  );
+}
+```
+
+### Category Skeletons
+
+Each category shows a skeleton while loading:
+
+```tsx
+if (isLoading) return <LoadingTable />;
+if (!hasData(data)) return null;
+```
+
+## Error Handling
+
+### Error Page
+
+```tsx title="components/ErrorPage.tsx"
+export function ErrorPage() {
+  return (
+    <div className="w-full h-screen flex flex-col items-center justify-center gap-4">
+      <h4 className="text-xl font-bold text-center">
+        Error al cargar las estadísticas
+      </h4>
+      <p className="text-sm text-center text-(--color-text-secondary)">
+        Inténtalo de nuevo más tarde
+      </p>
+    </div>
+  );
+}
+```
+
+### Conditional Rendering
+
+```tsx
+if (isError) return <ErrorPage />;
+if (isLoading) return <LoadingPage />;
+if (isUpdating) return <UpdatingPage />;
+```
+
+## Wrapper Component
+
+All statistics pages use a consistent wrapper:
+
+```tsx title="components/StatsWrapper.tsx"
+export function StatsWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col items-center justify-start w-full py-3 pt-15 mt-10">
+      <section className="w-full max-w-6xl flex flex-col items-start justify-start gap-6 p-4 rounded-2xl border border-(--color-border)">
+        {children}
+      </section>
+    </div>
+  );
+}
+```
+
+**File location**: `app/(frontend)/statistics/components/StatsWrapper.tsx:1`
+
+## SEO Optimization
+
+### Dynamic Metadata
+
+Each year page generates unique metadata:
+
+```tsx
+export async function generateMetadata({ params }): Promise<Metadata> {
+  const { year } = await params;
+  
+  return {
+    title: `Estadísticas de la Tamborrada Infantil ${year}`,
+    description: `Análisis de la Tamborrada Infantil ${year}: participantes, nombres más comunes, colegios destacados y tendencias anuales.`,
+    alternates: { canonical: `https://tamborradata.com/statistics/${year}` },
+    openGraph: {
+      title: `Estadísticas Tamborrada Infantil ${year}`,
+      description: `Explorar datos de ${year}`,
+      url: `https://tamborradata.com/statistics/${year}`
+    }
+  };
+}
+```
+
+### Structured Data
+
+JSON-LD structured data for search engines:
+
+```tsx title="YearStructuredData.tsx"
+export function YearStructuredData({ year }: { year: string }) {
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": `Estadísticas de la Tamborrada Infantil ${year}`,
+    "datePublished": `${year}-01-20`,
+    "author": {
+      "@type": "Organization",
+      "name": "Tamborradata"
+    }
+  };
+
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+    />
+  );
+}
+```
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Data Visualization" icon="chart-line" href="/features/data-visualization">
+    Chart and table components
+  </Card>
+  <Card title="Annual Updates" icon="calendar-check" href="/features/annual-updates">
+    The isUpdating system
+  </Card>
+  <Card title="React Query" icon="arrows-rotate" href="/advanced/react-query">
+    Data fetching patterns
+  </Card>
+  <Card title="SEO" icon="magnifying-glass" href="/advanced/seo">
+    SEO optimization strategies
+  </Card>
+</CardGroup>

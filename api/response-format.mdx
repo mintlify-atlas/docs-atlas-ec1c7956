@@ -1,0 +1,423 @@
+---
+title: Response Format
+description: Understanding response structures and data types in the TamborraData API
+---
+
+## Standard Response Structure
+
+All TamborraData API responses return JSON with consistent structures based on the endpoint.
+
+## Content Type
+
+All responses use the `application/json` content type:
+
+```
+Content-Type: application/json
+```
+
+## Success Responses
+
+### Years Endpoint
+
+```json
+{
+  "years": ["2025", "2024", "2023", "2022", "2020", "2019", "2018", "global"]
+}
+```
+
+<ResponseField name="years" type="string[]" required>
+  Array of available years in descending order, including "global" for all-time statistics.
+</ResponseField>
+
+### Statistics Endpoint
+
+```json
+{
+  "isUpdating": false,
+  "year": "2024",
+  "total_categories": 21,
+  "statistics": {
+    "topNames": [
+      {
+        "category": "topNames",
+        "public_data": [{"name": "Nora", "count": 98}],
+        "summary": "Nora fue el nombre más frecuente..."
+      }
+    ],
+    "totalParticipants": [
+      {
+        "category": "totalParticipants",
+        "public_data": [{"year": 2024, "count": 5039}],
+        "summary": "En 2024 la festividad contó con 5.039 niños..."
+      }
+    ]
+  }
+}
+```
+
+<ResponseField name="isUpdating" type="boolean" required>
+  Indicates if the system is currently being updated. When `true`, limited data may be available.
+</ResponseField>
+
+<ResponseField name="year" type="string" required>
+  The year for which statistics are returned (e.g., "2024" or "global").
+</ResponseField>
+
+<ResponseField name="total_categories" type="number" required>
+  Total number of statistical categories available for the year.
+</ResponseField>
+
+<ResponseField name="statistics" type="object" required>
+  Object containing statistics grouped by category. Each category contains an array with:
+  - `category` (string): Category identifier
+  - `public_data` (array|number|string): The actual statistical data
+  - `summary` (string): Human-readable summary in Spanish
+</ResponseField>
+
+### Category Endpoint
+
+```json
+{
+  "stats": [
+    {
+      "category": "topNames",
+      "public_data": [
+        {"name": "Nora", "count": 98},
+        {"name": "Ane", "count": 88},
+        {"name": "Jon", "count": 85}
+      ],
+      "summary": "Nora encabeza el ranking de 2025 con 98 participaciones..."
+    }
+  ]
+}
+```
+
+<ResponseField name="stats" type="array" required>
+  Array of category data objects with:
+  - `category` (string): Category identifier
+  - `public_data` (varies): Category-specific data structure
+  - `summary` (string): Descriptive summary of the data
+</ResponseField>
+
+### Companies Endpoint
+
+```json
+{
+  "companies": [
+    "Amara Berri",
+    "Santo Tomas Lizeoa",
+    "Aldapeta María Ikastetxea",
+    "Sagrado Corazon Mundaiz"
+  ]
+}
+```
+
+<ResponseField name="companies" type="string[]" required>
+  Array of school/company names that have participated in the event.
+</ResponseField>
+
+### Participants Endpoint
+
+```json
+{
+  "participants": [
+    {
+      "name": "Juan Garcia Lopez",
+      "school": "Amara Berri",
+      "year": 2024
+    },
+    {
+      "name": "Juan Garcia Lopez",
+      "school": "Amara Berri",
+      "year": 2023
+    }
+  ]
+}
+```
+
+<ResponseField name="participants" type="array" required>
+  Array of participant records, ordered by year (descending). Each record contains:
+  - `name` (string): Full name of the participant
+  - `school` (string): School/company name
+  - `year` (number): Year of participation
+</ResponseField>
+
+## Error Responses
+
+Error responses have a simple structure:
+
+```json
+{
+  "error": "El parámetro 'year' es obligatorio"
+}
+```
+
+<ResponseField name="error" type="string" required>
+  Human-readable error message describing what went wrong.
+</ResponseField>
+
+Optionally, detailed errors include:
+
+```json
+{
+  "error": "Error al obtener el estado del sistema",
+  "details": "Additional technical information"
+}
+```
+
+<ResponseField name="details" type="string">
+  Technical details about the error (present in some 500 errors).
+</ResponseField>
+
+See [Error Handling](/api/errors) for complete error documentation.
+
+## Data Types
+
+### Public Data Structures
+
+The `public_data` field varies by category:
+
+#### Array of Objects (Most Common)
+
+```json
+"public_data": [
+  {"name": "Nora", "count": 98},
+  {"name": "Ane", "count": 88}
+]
+```
+
+#### Array of Strings
+
+```json
+"public_data": ["Keity", "Aurkene", "Johsuar", "Ulises"]
+```
+
+#### Single Number
+
+```json
+"public_data": 1950
+```
+
+#### Complex Nested Objects
+
+```json
+"public_data": [
+  {
+    "total": 1568,
+    "school": "Amara Berri",
+    "years": [
+      {"year": 2018, "count": 214},
+      {"year": 2019, "count": 230}
+    ]
+  }
+]
+```
+
+## TypeScript Types
+
+The API source code includes TypeScript definitions:
+
+### Years Response
+
+```typescript
+type YearsResponse = {
+  years: string[];
+};
+```
+
+### Statistics Response
+
+```typescript
+type StatisticsResponse = {
+  isUpdating: boolean;
+  year: string;
+  total_categories: number;
+  statistics: Record<string, CategoryData[]>;
+};
+
+type CategoryData = {
+  category: string;
+  public_data: any; // Varies by category
+  summary: string;
+};
+```
+
+### Category Response
+
+```typescript
+type CategoryResponse = {
+  stats: CategoryData[];
+};
+```
+
+### Companies Response
+
+```typescript
+type CompaniesResponse = {
+  companies: string[];
+};
+```
+
+### Participants Response
+
+```typescript
+type ParticipantsResponse = {
+  participants: Participant[];
+};
+
+type Participant = {
+  name: string;
+  school: string;
+  year: number;
+};
+```
+
+### Error Response
+
+```typescript
+type ErrorResponse = {
+  error: string;
+  details?: string;
+};
+```
+
+## Field Descriptions
+
+### Common Fields
+
+<ParamField name="category" type="string">
+  Statistical category identifier. Valid values defined in `VALID_CATEGORIES` constant.
+</ParamField>
+
+<ParamField name="summary" type="string">
+  Human-readable summary in Spanish describing the statistical data.
+</ParamField>
+
+<ParamField name="isUpdating" type="boolean">
+  System maintenance status. When `true`, the database is being updated (typically in January).
+</ParamField>
+
+### Participant Fields
+
+<ParamField name="name" type="string">
+  Full name of the participant (normalized, without diacritics).
+</ParamField>
+
+<ParamField name="school" type="string">
+  School or company the participant belongs to.
+</ParamField>
+
+<ParamField name="year" type="number">
+  Year of participation.
+</ParamField>
+
+## Response Examples by Category
+
+### Top Names
+
+```json
+{
+  "public_data": [
+    {"name": "Nora", "count": 98},
+    {"name": "Ane", "count": 88},
+    {"name": "Jon", "count": 85}
+  ]
+}
+```
+
+### Schools Evolution
+
+```json
+{
+  "public_data": [
+    {
+      "total": 1568,
+      "school": "Amara Berri",
+      "years": [
+        {"year": 2018, "count": 214},
+        {"year": 2019, "count": 230}
+      ]
+    }
+  ]
+}
+```
+
+### Names Diversity
+
+```json
+{
+  "public_data": 1950
+}
+```
+
+### New Names by Year
+
+```json
+{
+  "public_data": ["Keity", "Aurkene", "Johsuar", "Ulises", "Meri"]
+}
+```
+
+## Null Handling
+
+The API may return `null` for data fields when:
+
+- No data is available
+- Database query fails
+- System is updating
+
+Always check for `null` values:
+
+```javascript
+const data = await response.json();
+if (data.statistics === null) {
+  console.log('No statistics available');
+}
+```
+
+## Pagination
+
+The API currently does **not support pagination**. All results are returned in a single response.
+
+- `/api/years`: Returns all available years
+- `/api/companies`: Returns all companies
+- `/api/statistics`: Returns all categories for a year
+- `/api/participants`: Returns all matching participants
+
+## Caching Headers
+
+The API does not currently set explicit caching headers. Implement client-side caching for optimal performance:
+
+```javascript
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+
+function getCachedData(key) {
+  const cached = localStorage.getItem(key);
+  if (cached) {
+    const {data, timestamp} = JSON.parse(cached);
+    if (Date.now() - timestamp < CACHE_DURATION) {
+      return data;
+    }
+  }
+  return null;
+}
+```
+
+## Data Encoding
+
+All text data is UTF-8 encoded and may include:
+
+- Spanish characters (á, é, í, ó, ú, ñ)
+- Basque characters (special letters and diacritics)
+- International names (various Unicode characters)
+
+Ensure your client handles UTF-8 properly:
+
+```javascript
+const response = await fetch(url, {
+  headers: {
+    'Accept': 'application/json',
+    'Accept-Charset': 'utf-8'
+  }
+});
+```

@@ -1,0 +1,506 @@
+---
+title: "React Query Integration"
+description: "Advanced server state management with React Query 5, SSR strategies, caching patterns, and polling optimization"
+icon: "rotate"
+---
+
+## Overview
+
+TamborraData leverages **React Query 5** (@tanstack/query) as the core server state management solution, providing automatic caching, background synchronization, and seamless SSR integration with Next.js 16.
+
+<Note>
+  React Query eliminates the need for manual state management, loading states, and cache invalidation logic, reducing boilerplate by ~70% compared to traditional Redux patterns.
+</Note>
+
+## Why React Query?
+
+### Key Advantages
+
+<AccordionGroup>
+  <Accordion title="Automatic Caching" icon="database">
+    React Query automatically caches server responses with configurable TTL, eliminating redundant network requests and improving perceived performance.
+
+    ```typescript
+    // Multiple components call this hook
+    // Only 1 HTTP request is made
+    useStatisticsQuery('2024');
+    ```
+  </Accordion>
+
+  <Accordion title="Background Synchronization" icon="arrows-rotate">
+    Data stays fresh through smart background refetching based on window focus, network reconnection, and time intervals.
+  </Accordion>
+
+  <Accordion title="Native SSR Support" icon="server">
+    First-class integration with Next.js Server Components enables instant content delivery and optimal SEO.
+  </Accordion>
+
+  <Accordion title="Request Deduplication" icon="layer-group">
+    Identical requests made simultaneously are automatically deduplicated into a single network call.
+  </Accordion>
+</AccordionGroup>
+
+### Compared Alternatives
+
+| Feature | React Query | SWR | Redux RTK Query |
+|---------|-------------|-----|------------------|
+| Infinite cache | ✅ | ⚠️ Manual | ✅ |
+| Conditional polling | ✅ | ✅ | ✅ |
+| Next.js 16 SSR | ✅ | ⚠️ Limited | ✅ |
+| Type safety | ✅ | ✅ | ✅ |
+| Bundle size | 13kb | 4kb | 45kb |
+| Request cancellation | ✅ | ❌ | ✅ |
+| DevTools | ✅ | ❌ | ✅ |
+
+<Tip>
+  React Query provides the best balance between features and simplicity for data-heavy applications.
+</Tip>
+
+## Global Configuration
+
+The query client is configured in `ReactQueryProvider.tsx` with optimized defaults:
+
+```typescript
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,        // 5 minutes
+      gcTime: 30 * 60 * 1000,          // 30 minutes
+      retry: 1,                         // 1 retry on failure
+      refetchOnWindowFocus: false,      // No refetch on tab focus
+      refetchOnReconnect: false,        // No refetch on reconnect
+    },
+    mutations: {
+      retry: 0,
+    },
+  },
+});
+```
+
+### Configuration Explained
+
+<Tabs>
+  <Tab title="staleTime">
+    **5 minutes** - Historical statistics data doesn't change frequently, so we can safely cache for extended periods.
+
+    ```typescript
+    staleTime: 5 * 60 * 1000  // Data stays fresh for 5 minutes
+    ```
+  </Tab>
+
+  <Tab title="gcTime">
+    **30 minutes** - Keep data in memory for fast navigation between pages without re-fetching.
+
+    ```typescript
+    gcTime: 30 * 60 * 1000  // Cache persists for 30 minutes
+    ```
+  </Tab>
+
+  <Tab title="retry">
+    **1 retry** - Give network requests a second chance on transient failures.
+
+    ```typescript
+    retry: 1  // Retry once on error
+    ```
+  </Tab>
+
+  <Tab title="refetch policies">
+    **Disabled** - Manual control over when data refreshes, preventing unnecessary API calls.
+
+    ```typescript
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    ```
+  </Tab>
+</Tabs>
+
+## Caching Strategies
+
+TamborraData implements three distinct caching patterns based on data characteristics:
+
+### 1. Infinite Cache (Static Data)
+
+For **immutable historical data** that never changes:
+
+```typescript
+export function useStatisticsQuery(year: string) {
+  return useQuery({
+    queryKey: queryKeys.statistics(year),
+    queryFn: () => fetchStatistics(year),
+    staleTime: Infinity,  // Never marked as stale
+    gcTime: Infinity,     // Never garbage collected
+  });
+}
+```
+
+<Note>
+  Used for annual statistics, expanded categories, and historical aggregates.
+</Note>
+
+### 2. Conditional Polling (Dynamic Data)
+
+For data that changes during **update periods**:
+
+```typescript
+export function useStatisticsQuery(year: string) {
+  return useQuery({
+    queryKey: queryKeys.statistics(year),
+    queryFn: () => fetchStatistics(year),
+    
+    // Poll every 3 seconds when system is updating
+    refetchInterval: (query) =>
+      query.state.data?.isUpdating ? 3000 : false,
+    
+    // Re-fetch on focus if updating
+    refetchOnWindowFocus: (query) =>
+      query.state.data?.isUpdating === true,
+  });
+}
+```
+
+**Behavior:**
+- `isUpdating = true` → Poll every 3 seconds
+- `isUpdating = false` → No polling
+- User returns to tab → Resume polling if updating
+
+### 3. Short TTL (Search Results)
+
+For **user searches** with moderate volatility:
+
+```typescript
+export function useParticipantsQuery(params: SearchParams) {
+  return useQuery({
+    queryKey: queryKeys.participants(params),
+    queryFn: () => fetchParticipants(params),
+    staleTime: 2 * 60 * 1000,   // 2 minutes
+    gcTime: 10 * 60 * 1000,     // 10 minutes
+  });
+}
+```
+
+## Custom Hooks
+
+All React Query usage is encapsulated in custom hooks for better organization and reusability.
+
+### useStatisticsQuery
+
+```typescript
+export function useStatisticsQuery<T extends StatsResponse>(year: string) {
+  return useQuery({
+    queryKey: queryKeys.statistics(year),
+    queryFn: ({ signal }) => fetchStatistics<T>(year, signal),
+    enabled: Boolean(year),
+    staleTime: Infinity,
+    gcTime: Infinity,
+    retry: 0,
+    refetchOnWindowFocus: (query) => query.state.data?.isUpdating === true,
+    refetchInterval: (query) => (query.state.data?.isUpdating ? 3000 : false),
+  });
+}
+```
+
+**Features:**
+- ✅ AbortController support for request cancellation
+- ✅ Conditional polling based on `isUpdating` flag
+- ✅ Generic type support for different response shapes
+- ✅ Infinite cache for historical data
+
+### useCategoryQuery
+
+```typescript
+export function useCategoryQuery(year: string, category: string) {
+  return useQuery({
+    queryKey: queryKeys.category(year, category),
+    queryFn: () => fetchCategory(year, category),
+    enabled: Boolean(year && category),
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+}
+```
+
+### useYearsQuery
+
+```typescript
+export function useYearsQuery() {
+  return useQuery({
+    queryKey: queryKeys.years(),
+    queryFn: fetchYears,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+}
+```
+
+## SSR and Prefetching
+
+TamborraData uses Next.js 16 Server Components with React Query for optimal SSR performance.
+
+### Prefetching Strategy
+
+```typescript
+// page.tsx (Server Component)
+import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
+import { getQueryClient } from '@/lib/getQueryClient';
+
+export default async function StatisticsPage({ params }: Props) {
+  const queryClient = getQueryClient();
+
+  // Prefetch on server
+  await queryClient.prefetchQuery({
+    queryKey: queryKeys.statistics(params.year),
+    queryFn: () => fetchStatistics(params.year),
+  });
+
+  return (
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <StatisticsContent year={params.year} />
+    </HydrationBoundary>
+  );
+}
+```
+
+### SSR Data Flow
+
+<Steps>
+  <Step title="Server Prefetch">
+    Server component prefetches data and populates React Query cache.
+    
+    ```typescript
+    await queryClient.prefetchQuery({
+      queryKey: ['statistics', '2024'],
+      queryFn: () => fetchStatistics('2024'),
+    });
+    ```
+  </Step>
+
+  <Step title="Dehydration">
+    Cache is serialized and embedded in the HTML response.
+    
+    ```typescript
+    const dehydratedState = dehydrate(queryClient);
+    ```
+  </Step>
+
+  <Step title="HTML Delivery">
+    Browser receives fully rendered HTML with embedded data.
+  </Step>
+
+  <Step title="Client Hydration">
+    React Query rehydrates cache on client, avoiding duplicate requests.
+    
+    ```typescript
+    <HydrationBoundary state={dehydratedState}>
+      <Component />
+    </HydrationBoundary>
+    ```
+  </Step>
+
+  <Step title="Instant Display">
+    Component reads from cache immediately - no loading state!
+    
+    ```typescript
+    const { data } = useStatisticsQuery('2024');
+    // data is immediately available
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+  With SSR prefetching, users see content instantly and search engines get fully rendered HTML for optimal SEO.
+</Tip>
+
+## Conditional Polling System
+
+The polling system is TamborraData's most sophisticated React Query feature.
+
+### Why Polling?
+
+During January, the system generates new data automatically. The frontend detects this via the `isUpdating` flag and activates real-time polling.
+
+### Implementation
+
+```typescript
+refetchInterval: (query) => {
+  const isUpdating = query.state.data?.isUpdating;
+  return isUpdating ? 3000 : false;
+};
+
+refetchOnWindowFocus: (query) => {
+  // Only refetch if currently updating
+  return query.state.data?.isUpdating === true;
+};
+```
+
+### Behavior Matrix
+
+| System State | Polling Active | Refetch on Focus |
+|--------------|----------------|------------------|
+| `isUpdating = true` | ✅ Every 3s | ✅ Yes |
+| `isUpdating = false` | ❌ No | ❌ No |
+| Network error | ❌ Stops | ❌ No |
+
+<Warning>
+  Polling consumes server resources. Always implement conditional logic to prevent unnecessary requests.
+</Warning>
+
+## Query Keys Organization
+
+Structured query keys enable precise cache invalidation:
+
+```typescript
+// lib/queryKeys.ts
+export const queryKeys = {
+  all: ['tamborradata'] as const,
+  statistics: (year: string) => 
+    [...queryKeys.all, 'statistics', year] as const,
+  category: (year: string, cat: string) => 
+    [...queryKeys.statistics(year), cat] as const,
+  years: () => 
+    [...queryKeys.all, 'years'] as const,
+  companies: () => 
+    [...queryKeys.all, 'companies'] as const,
+  participants: (params: SearchParams) => 
+    [...queryKeys.all, 'participants', params] as const,
+};
+```
+
+### Benefits
+
+<CardGroup cols={2}>
+  <Card title="Selective Invalidation" icon="target">
+    Invalidate specific queries without affecting others:
+    
+    ```typescript
+    // Invalidate all 2024 statistics
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.statistics('2024')
+    });
+    ```
+  </Card>
+
+  <Card title="Type Safety" icon="shield">
+    TypeScript ensures query keys are used correctly:
+    
+    ```typescript
+    const key = queryKeys.statistics('2024');
+    // ['tamborradata', 'statistics', '2024']
+    ```
+  </Card>
+
+  <Card title="Easy Debugging" icon="bug">
+    Hierarchical structure makes cache inspection simple in React Query DevTools.
+  </Card>
+
+  <Card title="Consistency" icon="check">
+    Centralized keys prevent typos and ensure consistency across the codebase.
+  </Card>
+</CardGroup>
+
+## Performance Optimizations
+
+### Request Deduplication
+
+React Query automatically deduplicates identical requests:
+
+```typescript
+// Multiple components call this hook simultaneously
+<ComponentA />  ──┐
+<ComponentB />  ──┤→ 1 single HTTP request
+<ComponentC />  ──┘
+
+useStatisticsQuery('2024');
+```
+
+### Request Cancellation
+
+```typescript
+queryFn: ({ signal }) => fetchStatistics(year, signal);
+
+// In fetchStatistics
+export async function fetchStatistics(year: string, signal?: AbortSignal) {
+  const response = await fetch(`/api/statistics?year=${year}`, { signal });
+  return response.json();
+}
+```
+
+**Benefit:** If users navigate away quickly, in-flight requests are cancelled automatically.
+
+### Lazy Hydration
+
+```typescript
+<HydrationBoundary state={dehydrate(queryClient)}>
+  {/* Only rehydrates when component mounts */}
+  <StatisticsContent />
+</HydrationBoundary>
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Custom Hooks" icon="code">
+    Always wrap `useQuery` in custom hooks for better organization:
+    
+    ```typescript
+    // ✅ Good
+    export function useStatisticsQuery(year: string) {
+      return useQuery({
+        queryKey: queryKeys.statistics(year),
+        queryFn: () => fetchStatistics(year),
+      });
+    }
+    
+    // ❌ Bad
+    useQuery({
+      queryKey: ['statistics', year],
+      queryFn: () => fetch('...')
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Leverage Infinite Cache" icon="infinity">
+    For immutable data, use infinite cache to eliminate unnecessary refetches:
+    
+    ```typescript
+    staleTime: Infinity,
+    gcTime: Infinity,
+    ```
+  </Accordion>
+
+  <Accordion title="Implement Conditional Logic" icon="code-branch">
+    Use dynamic options for smart caching:
+    
+    ```typescript
+    refetchInterval: (query) => 
+      query.state.data?.needsPolling ? 3000 : false,
+    ```
+  </Accordion>
+
+  <Accordion title="Enable Request Cancellation" icon="ban">
+    Always pass AbortSignal to fetch calls:
+    
+    ```typescript
+    queryFn: ({ signal }) => fetch(url, { signal }),
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Resources
+
+<CardGroup cols={2}>
+  <Card title="React Query Docs" icon="book" href="https://tanstack.com/query/latest">
+    Official TanStack Query documentation
+  </Card>
+  
+  <Card title="SSR Guide" icon="server" href="https://tanstack.com/query/latest/docs/framework/react/guides/ssr">
+    Server-side rendering with React Query
+  </Card>
+  
+  <Card title="Advanced Patterns" icon="code" href="https://tkdodo.eu/blog/practical-react-query">
+    Practical React Query patterns by TkDodo
+  </Card>
+  
+  <Card title="Next.js Integration" icon="link" href="https://tanstack.com/query/latest/docs/framework/react/guides/advanced-ssr">
+    Advanced SSR patterns with Next.js
+  </Card>
+</CardGroup>

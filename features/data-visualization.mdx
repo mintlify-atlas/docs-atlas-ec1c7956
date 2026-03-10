@@ -1,0 +1,404 @@
+---
+title: "Data Visualization"
+description: "Interactive charts and tables with Nivo and Framer Motion animations"
+icon: "chart-line"
+---
+
+TamborraData uses **Nivo** for interactive data visualizations combined with **Framer Motion** for smooth animations. All charts are responsive, accessible, and optimized for performance.
+
+## Overview
+
+The visualization system provides:
+
+<CardGroup cols={2}>
+  <Card title="Interactive Charts" icon="chart-bar">
+    Bar charts, line charts, and responsive layouts powered by Nivo
+  </Card>
+  <Card title="Smooth Animations" icon="sparkles">
+    Framer Motion animations for page transitions and component reveals
+  </Card>
+  <Card title="Accessible Design" icon="universal-access">
+    ARIA labels, keyboard navigation, and screen reader support
+  </Card>
+  <Card title="Chart/Table Toggle" icon="table">
+    Switch between visual charts and detailed tables on desktop
+  </Card>
+</CardGroup>
+
+## Chart Types
+
+### Bar Charts
+
+Used for displaying top names, surnames, and schools.
+
+**Example: Top Names Chart**
+
+```tsx title="app/(frontend)/statistics/[year]/components/TopNames/components/TopNamesChart.tsx"
+import { ResponsiveBar } from '@nivo/bar';
+
+export function TopNamesChart({ topNamesStats }) {
+  return (
+    <div className="w-full h-[400px] bg-white rounded-2xl p-3 select-none"
+         role="img"
+         aria-label="Gráfico de barras mostrando los 15 nombres más repetidos del año">
+      <ResponsiveBar
+        data={topNamesStats[0].public_data?.slice(0, 15) || []}
+        keys={['count']}
+        indexBy="name"
+        margin={{ top: 20, right: 30, bottom: 50, left: 60 }}
+        padding={0.3}
+        colors={({ index }) => (index >= 3 ? '#09ffff' : '#09f')}
+        borderRadius={5}
+        axisBottom={{ tickRotation: -70 }}
+        labelSkipHeight={12}
+        animate={true}
+        tooltip={({ indexValue, value }) => (
+          <div style={{
+            background: '#ffffff',
+            padding: '8px 15px',
+            borderRadius: '6px',
+            fontSize: 12,
+            boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
+          }}>
+            <strong>{indexValue}</strong>: {value}
+          </div>
+        )}
+      />
+    </div>
+  );
+}
+```
+
+<Note>
+**Color coding**: The top 3 items use a distinct blue color (`#09f`) while others use cyan (`#09ffff`) to highlight the most significant entries.
+</Note>
+
+**File location**: `app/(frontend)/statistics/[year]/components/TopNames/components/TopNamesChart.tsx:1`
+
+### Line Charts
+
+Used for time-series data showing trends over multiple years.
+
+**Example: Total Participants Evolution**
+
+```tsx title="app/(frontend)/statistics/global/components/TotalParticipants/components/TotalParticipantsChart.tsx"
+import { ResponsiveLine } from '@nivo/line';
+import { useMemo } from 'react';
+
+export function TotalParticipantsChart({ totalParticipants }) {
+  // Normalize data for ResponsiveLine
+  const formattedData = useMemo(
+    () => [{
+      id: 'count',
+      data: totalParticipants[0].public_data.map((d) => ({
+        x: String(d.year),
+        y: Number(d.count ?? 0)
+      }))
+    }],
+    [totalParticipants]
+  );
+
+  // Calculate Y-axis min/max with padding
+  const { yMin, yMax, tickValues } = useMemo(() => {
+    const values = formattedData[0].data?.map((d) => Number(d.y)) || [];
+    const max = Math.max(0, ...values);
+    const pad = Math.max(20, Math.ceil(max * 0.1));
+    const hardMax = max + pad;
+    
+    const divisions = 5;
+    const step = Math.max(1, Math.ceil(hardMax / divisions));
+    const ticks = [];
+    for (let t = 0; t <= hardMax; t += step) ticks.push(t);
+    
+    return { yMin: 0, yMax: hardMax, tickValues: ticks };
+  }, [formattedData]);
+
+  return (
+    <div className="w-full h-[400px] bg-white rounded-2xl p-3"
+         role="img"
+         aria-label="Gráfico de líneas mostrando la evolución de participantes totales por año">
+      <ResponsiveLine
+        data={formattedData}
+        margin={{ top: 20, right: 30, bottom: 60, left: 60 }}
+        xScale={{ type: 'point' }}
+        yScale={{ type: 'linear', min: yMin, max: yMax }}
+        axisBottom={{
+          legend: 'Year',
+          legendOffset: 46,
+          legendPosition: 'middle'
+        }}
+        axisLeft={{
+          legend: 'Count',
+          legendOffset: -50,
+          legendPosition: 'middle',
+          tickValues,
+          format: (v) => `${v}`
+        }}
+        colors={['#2c3e66']}
+        pointSize={8}
+        pointColor={{ theme: 'background' }}
+        pointBorderWidth={2}
+        enableSlices="x"
+        useMesh
+        animate
+      />
+    </div>
+  );
+}
+```
+
+**File location**: `app/(frontend)/statistics/global/components/TotalParticipants/components/TotalParticipantsChart.tsx:1`
+
+<Tip>
+**Performance optimization**: Y-axis ranges are calculated with `useMemo` to prevent unnecessary recalculations on every render.
+</Tip>
+
+## Chart/Table Toggle
+
+Users can switch between chart and table views on desktop devices.
+
+```tsx title="app/(frontend)/statistics/[year]/components/TopNames/TopNames.tsx"
+import dynamic from 'next/dynamic';
+import { LoadingChart } from '@/app/(frontend)/statistics/components/loaders/LoadingChart';
+
+const TopNamesChart = dynamic(
+  () => import('./components/TopNamesChart').then((mod) => mod.TopNamesChart),
+  { ssr: false, loading: () => <LoadingChart /> }
+);
+
+export function TopNames() {
+  const { topNamesStats, chart, showChart } = useTopNames();
+
+  return (
+    <section className="w-full">
+      <h2 className="text-lg md:text-2xl font-bold">
+        Nombres mas repetidos
+      </h2>
+      <article className="flex flex-col items-start justify-center py-5">
+        <button
+          onClick={showChart}
+          className="hidden md:block py-1 px-3 mb-3 rounded bg-(--color-primary) cursor-pointer hover:opacity-80">
+          {chart ? 'Ver tabla' : 'Ver gráfico'}
+        </button>
+        {chart ? <TopNamesChart {...topNamesHook} /> : <TopNamesTable {...topNamesHook} />}
+      </article>
+    </section>
+  );
+}
+```
+
+**File location**: `app/(frontend)/statistics/[year]/components/TopNames/TopNames.tsx:14`
+
+<Note>
+**Mobile behavior**: Charts are hidden on mobile devices to optimize performance and UX. Only tables are shown on small screens.
+</Note>
+
+## Framer Motion Animations
+
+### Page Transitions
+
+Smooth fade-in animations when components mount:
+
+```tsx title="Example: Search Form Animation"
+import { motion } from 'framer-motion';
+
+export function CardForm({ onSubmit }) {
+  return (
+    <motion.form
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{
+        opacity: { duration: 0.4, ease: 'linear', delay: 0.7 }
+      }}
+      onSubmit={formSubmit}
+    >
+      {/* Form content */}
+    </motion.form>
+  );
+}
+```
+
+**File location**: `app/(frontend)/search/components/SearchCard/components/CardForm/CardForm.tsx:32`
+
+### Alert Messages
+
+Animated alerts with height transitions:
+
+```tsx
+import { AnimatePresence, motion } from 'framer-motion';
+
+<AnimatePresence mode="wait">
+  {alert && (
+    <motion.p
+      initial={{ opacity: 0, height: 0, marginTop: 0 }}
+      animate={{ opacity: 1, height: 'auto', marginTop: 0 }}
+      exit={{ opacity: 0, height: 0, marginTop: 0 }}
+      transition={{ duration: 0.3 }}
+      className="text-sm text-(--color-error) font-semibold text-center"
+    >
+      {alert}
+    </motion.p>
+  )}
+</AnimatePresence>
+```
+
+**File location**: `app/(frontend)/search/components/SearchCard/components/CardForm/CardForm.tsx:55`
+
+### Header Fade-In
+
+The header fades in after initial page load:
+
+```tsx title="app/(frontend)/components/Header/Header.tsx"
+import { motion } from 'framer-motion';
+
+export function Header() {
+  const { isVisible } = useHeaderFadeIn();
+
+  return (
+    <motion.header
+      initial={{ opacity: 0 }}
+      animate={{ opacity: isVisible ? 1 : 0 }}
+      transition={{ duration: 0.3 }}
+      className="w-full fixed z-500 bg-(--color-header)"
+    >
+      {/* Header content */}
+    </motion.header>
+  );
+}
+```
+
+**File location**: `app/(frontend)/components/Header/Header.tsx:13`
+
+## Dynamic Imports
+
+Charts are dynamically imported to reduce initial bundle size:
+
+```tsx
+import dynamic from 'next/dynamic';
+import { LoadingChart } from '@/app/(frontend)/statistics/components/loaders/LoadingChart';
+
+const TopNamesChart = dynamic(
+  () => import('./components/TopNamesChart').then((mod) => mod.TopNamesChart),
+  { 
+    ssr: false,  // Don't render on server
+    loading: () => <LoadingChart />  // Show skeleton while loading
+  }
+);
+```
+
+<Info>
+**Why `ssr: false`?** Nivo charts depend on browser APIs and don't render correctly on the server. Dynamic imports with `ssr: false` ensure charts only load client-side.
+</Info>
+
+## Accessibility Features
+
+### ARIA Labels
+
+All charts include descriptive ARIA labels:
+
+```tsx
+<div
+  role="img"
+  aria-label="Gráfico de barras mostrando los 15 nombres más repetidos del año"
+  className="w-full h-[400px]"
+>
+  <ResponsiveBar {...chartProps} />
+</div>
+```
+
+### Semantic Tables
+
+Tables use proper semantic HTML:
+
+```tsx title="app/(frontend)/statistics/[year]/components/TopNames/components/TopNamesTable.tsx"
+<table
+  role="table"
+  aria-label="Tabla de nombres más repetidos del año"
+  className="w-full border border-(--color-border)"
+>
+  <thead>
+    <tr>
+      <th scope="col">#</th>
+      <th scope="col">Nombre</th>
+      <th scope="col">Apariciones</th>
+    </tr>
+  </thead>
+  <tbody>
+    {topNamesStats[0].public_data.map((stat, index) => (
+      <tr key={stat.name}>
+        <td>{index + 1}</td>
+        <td>{stat.name}</td>
+        <td>{stat.count}</td>
+      </tr>
+    ))}
+  </tbody>
+</table>
+```
+
+**File location**: `app/(frontend)/statistics/[year]/components/TopNames/components/TopNamesTable.tsx:15`
+
+## Custom Tooltips
+
+Nivo charts support custom tooltip styling:
+
+```tsx
+tooltip={({ indexValue, value }) => (
+  <div style={{
+    background: '#ffffff',
+    color: '#000000',
+    padding: '8px 15px',
+    borderRadius: '6px',
+    fontSize: 12,
+    boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
+  }}>
+    <strong>{indexValue}</strong>: {value}
+  </div>
+)}
+```
+
+## Loading States
+
+### Chart Skeleton
+
+Displayed while charts are loading:
+
+```tsx title="app/(frontend)/statistics/components/loaders/LoadingChart.tsx"
+export function LoadingChart() {
+  return (
+    <div className="w-full h-[400px] bg-white rounded-2xl p-3 animate-pulse">
+      <div className="w-full h-full bg-gray-200 rounded" />
+    </div>
+  );
+}
+```
+
+### Table Skeleton
+
+Shown when loading additional table rows:
+
+```tsx title="app/(frontend)/statistics/components/loaders/LoadingTable.tsx"
+export function LoadingTable({ rows = 3 }) {
+  return (
+    <>
+      {Array.from({ length: rows }).map((_, i) => (
+        <tr key={i} className="animate-pulse">
+          <td className="p-2"><div className="h-4 bg-gray-200 rounded" /></td>
+          <td className="p-2"><div className="h-4 bg-gray-200 rounded" /></td>
+          <td className="p-2"><div className="h-4 bg-gray-200 rounded" /></td>
+        </tr>
+      ))}
+    </>
+  );
+}
+```
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="React Query" icon="arrows-rotate" href="/advanced/react-query">
+    Data fetching and caching for charts
+  </Card>
+  <Card title="Statistics Explorer" icon="magnifying-glass-chart" href="/features/statistics-explorer">
+    Browse statistics by year
+  </Card>
+</CardGroup>

@@ -1,0 +1,286 @@
+---
+title: Get Available Years
+api: GET /api/years
+description: Retrieve the list of years for which data is available in the TamborraData system
+---
+
+## Endpoint
+
+```
+GET /api/years
+```
+
+## Description
+
+Returns an array of years for which Tamborrada Infantil data is available. The response includes individual years (e.g., "2024", "2025") and "global" for aggregated all-time statistics.
+
+This endpoint is typically used first to determine which years can be queried in other endpoints.
+
+## Authentication
+
+No authentication required. This is a public endpoint.
+
+## Query Parameters
+
+This endpoint does not accept any query parameters.
+
+## Response
+
+<ResponseField name="years" type="string[]" required>
+  Array of available years in descending order, including "global" for all-time statistics.
+</ResponseField>
+
+### Success Response (200 OK)
+
+```json
+{
+  "years": [
+    "2025",
+    "2024",
+    "2023",
+    "2022",
+    "2020",
+    "2019",
+    "2018",
+    "global"
+  ]
+}
+```
+
+### Error Responses
+
+#### No Years Found (404 Not Found)
+
+```json
+{
+  "error": "No se encontraron años disponibles"
+}
+```
+
+Returned when the database contains no year data (unlikely in production).
+
+#### Database Error (500 Internal Server Error)
+
+```json
+{
+  "error": "Error al obtener el estado del sistema",
+  "details": "<technical details>"
+}
+}
+```
+
+Returned when there's an unexpected database or server error.
+
+## Examples
+
+### cURL
+
+```bash
+curl https://tamborradata.com/api/years
+```
+
+### JavaScript (Fetch)
+
+```javascript
+const response = await fetch('https://tamborradata.com/api/years');
+const data = await response.json();
+
+console.log('Available years:', data.years);
+// Output: Available years: ["2025", "2024", "2023", ...]
+```
+
+### JavaScript (Axios)
+
+```javascript
+const axios = require('axios');
+
+try {
+  const { data } = await axios.get('https://tamborradata.com/api/years');
+  console.log('Available years:', data.years);
+} catch (error) {
+  console.error('Error:', error.response?.data?.error);
+}
+```
+
+### Python
+
+```python
+import requests
+
+response = requests.get('https://tamborradata.com/api/years')
+data = response.json()
+
+if response.status_code == 200:
+    print('Available years:', data['years'])
+else:
+    print('Error:', data['error'])
+```
+
+### TypeScript
+
+```typescript
+type YearsResponse = {
+  years: string[];
+};
+
+type ErrorResponse = {
+  error: string;
+  details?: string;
+};
+
+async function getAvailableYears(): Promise<string[]> {
+  const response = await fetch('https://tamborradata.com/api/years');
+  
+  if (!response.ok) {
+    const error: ErrorResponse = await response.json();
+    throw new Error(error.error);
+  }
+  
+  const data: YearsResponse = await response.json();
+  return data.years;
+}
+
+// Usage
+try {
+  const years = await getAvailableYears();
+  console.log('Years:', years);
+} catch (error) {
+  console.error('Failed to fetch years:', error);
+}
+```
+
+## Implementation Details
+
+### Source Code Reference
+
+The endpoint is implemented in:
+- Route: `app/(backend)/api/years/route.ts:5`
+- Service: `app/(backend)/api/years/services/years.service.ts`
+- Repository: `app/(backend)/api/years/repositories/years.repo.ts`
+
+### Database Query
+
+The endpoint queries the `available_years` table:
+
+```sql
+SELECT year 
+FROM available_years 
+WHERE is_ready = true
+ORDER BY year DESC;
+```
+
+### Data Flow
+
+1. Request hits the API route handler
+2. Service layer calls `getYears()`
+3. Repository queries `available_years` table in Supabase
+4. Results are filtered for `is_ready = true`
+5. Years are sorted in descending order
+6. "global" is included if available
+7. Response is returned as JSON
+
+## Use Cases
+
+### 1. Populate Year Selector
+
+```javascript
+async function populateYearDropdown() {
+  const response = await fetch('https://tamborradata.com/api/years');
+  const { years } = await response.json();
+  
+  const select = document.getElementById('year-selector');
+  years.forEach(year => {
+    const option = document.createElement('option');
+    option.value = year;
+    option.textContent = year === 'global' ? 'All Years' : year;
+    select.appendChild(option);
+  });
+}
+```
+
+### 2. Validate Year Parameter
+
+```javascript
+const { years } = await fetch('https://tamborradata.com/api/years')
+  .then(r => r.json());
+
+function isValidYear(year) {
+  return years.includes(year);
+}
+
+const userYear = '2024';
+if (isValidYear(userYear)) {
+  // Proceed with query
+} else {
+  console.error('Invalid year');
+}
+```
+
+### 3. Find Most Recent Year
+
+```javascript
+async function getMostRecentYear() {
+  const response = await fetch('https://tamborradata.com/api/years');
+  const { years } = await response.json();
+  
+  // Filter out 'global' and get first numeric year
+  const numericYears = years.filter(y => y !== 'global');
+  return numericYears[0]; // Already sorted descending
+}
+
+const latest = await getMostRecentYear();
+console.log('Latest year:', latest); // "2025"
+```
+
+## Notes
+
+<Note>
+  The "global" value represents aggregated statistics across all years. Use it to query all-time records.
+</Note>
+
+<Warning>
+  Year 2021 is missing from the dataset due to the COVID-19 pandemic cancellation. This is expected and not an error.
+</Warning>
+
+<Info>
+  The `available_years` table is updated during the annual data refresh process in January. New years are added automatically.
+</Info>
+
+## Related Endpoints
+
+- [GET /api/statistics](/api/endpoints/statistics) - Use a year from this endpoint to query statistics
+- [GET /api/category](/api/endpoints/category) - Requires a valid year parameter
+
+## Performance
+
+- **Response Time**: < 100ms (typically)
+- **Database Query**: Simple SELECT with index on `year`
+- **Caching**: No server-side caching; safe to cache client-side for 24 hours
+- **Payload Size**: ~100 bytes
+
+## Error Handling
+
+```javascript
+async function fetchYearsSafely() {
+  try {
+    const response = await fetch('https://tamborradata.com/api/years');
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`API Error: ${error.error}`);
+    }
+    
+    const data = await response.json();
+    
+    if (!data.years || data.years.length === 0) {
+      console.warn('No years available');
+      return [];
+    }
+    
+    return data.years;
+  } catch (error) {
+    console.error('Failed to fetch years:', error);
+    return []; // Return empty array as fallback
+  }
+}
+```

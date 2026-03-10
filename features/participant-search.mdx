@@ -1,0 +1,503 @@
+---
+title: "Participant Search"
+description: "Search functionality with filters and real-time results"
+icon: "magnifying-glass"
+---
+
+The participant search feature allows users to find participants by name and school. It includes form validation, dropdown filters, and real-time result updates powered by React Query.
+
+## Overview
+
+Key features of the search system:
+
+<CardGroup cols={2}>
+  <Card title="Form Validation" icon="check-circle">
+    Client-side validation with error messages
+  </Card>
+  <Card title="School Dropdown" icon="school">
+    Searchable dropdown with all participating schools
+  </Card>
+  <Card title="Real-time Results" icon="bolt">
+    Instant search results with React Query caching
+  </Card>
+  <Card title="Loading States" icon="spinner">
+    Skeleton screens and loading indicators
+  </Card>
+</CardGroup>
+
+## Search Flow
+
+### User Journey
+
+1. **Navigate to search page** (`/search`)
+2. **Enter participant name** (minimum 2 characters)
+3. **Select school** from dropdown
+4. **Submit form** or press Enter
+5. **View results** below the form
+
+### URL Parameters
+
+Search parameters are stored in the URL for shareable links:
+
+```
+https://tamborradata.com/search?name=Juan&company=Colegio+A
+```
+
+<Note>
+URL parameters are automatically loaded when the page loads, allowing users to share search results.
+</Note>
+
+## Search Form
+
+### Form Component
+
+```tsx title="app/(frontend)/search/components/SearchCard/components/CardForm/CardForm.tsx"
+'use client';
+import { AnimatePresence, motion } from 'framer-motion';
+import { NameInput } from './components/NameInput';
+import { SelectCompanies } from './components/SelectCompanies/SelectCompanies';
+import { useForm } from './hooks/useForm';
+import { useSearchParams } from 'next/navigation';
+
+export function CardForm({ onSubmit }) {
+  const { formSubmit, alert } = useForm({ onSubmit });
+  const searchParams = useSearchParams();
+  const initialName = searchParams.get('name') || '';
+  const initialCompany = searchParams.get('company') || '';
+
+  return (
+    <motion.form
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ opacity: { duration: 0.4, ease: 'linear', delay: 0.7 } }}
+      aria-label="Formulario de búsqueda"
+      className="h-full flex flex-col justify-between gap-5"
+      onSubmit={formSubmit}
+    >
+      <h2 className="text-xl md:text-2xl font-bold text-center">
+        Buscar Participante
+      </h2>
+      
+      <div className="flex flex-col gap-5">
+        <NameInput defaultValue={initialName} />
+        <SelectCompanies defaultValue={initialCompany} />
+      </div>
+
+      {/* Alert message */}
+      <AnimatePresence mode="wait">
+        {alert && (
+          <motion.p
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3 }}
+            className="text-sm text-(--color-error) font-semibold text-center"
+          >
+            {alert}
+          </motion.p>
+        )}
+      </AnimatePresence>
+
+      <button
+        type="submit"
+        className="w-full bg-(--color-bg-secondary) font-semibold py-2 rounded-md hover:scale-102 transition-all"
+      >
+        Buscar
+      </button>
+    </motion.form>
+  );
+}
+```
+
+**File location**: `app/(frontend)/search/components/SearchCard/components/CardForm/CardForm.tsx:9`
+
+### Name Input
+
+Simple text input with validation:
+
+```tsx title="components/NameInput.tsx"
+export function NameInput({ defaultValue }: { defaultValue?: string }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <label htmlFor="name" className="font-semibold">
+        Nombre del participante
+      </label>
+      <input
+        id="name"
+        name="name"
+        type="text"
+        required
+        minLength={2}
+        defaultValue={defaultValue}
+        placeholder="Introduce un nombre"
+        className="px-3 py-2 rounded-md bg-(--color-bg-secondary) outline-none"
+        aria-label="Nombre del participante"
+      />
+    </div>
+  );
+}
+```
+
+<Info>
+**Minimum length**: Names must be at least 2 characters to prevent excessive database queries.
+</Info>
+
+## School Dropdown
+
+### Custom Select Component
+
+The school selector is a custom dropdown built from scratch:
+
+```tsx title="app/(frontend)/search/components/SearchCard/components/CardForm/components/SelectCompanies/SelectCompanies.tsx"
+'use client';
+import { scrollToForm } from '../../utils/scrollToForm';
+import { useDropdown } from './hooks/useDropdown';
+import { ChevronDown } from '@/app/(frontend)/icons/icons';
+import { SelectOptions } from './SelectOptions';
+
+export function SelectCompanies({ defaultValue }: { defaultValue?: string }) {
+  const { isOpen, setIsOpen, dropdownRef, selectedCompany } = useDropdown(defaultValue);
+
+  return (
+    <div id="company-select" className="flex flex-col w-full gap-2" ref={dropdownRef}>
+      <label className="font-semibold">Selecciona una compañía</label>
+
+      <button
+        onClick={() => {
+          setIsOpen(!isOpen);
+          scrollToForm(dropdownRef.current);
+        }}
+        type="button"
+        aria-label="Selector de compañías"
+        aria-expanded={isOpen}
+        aria-haspopup="listbox"
+        aria-controls="company-listbox"
+        className="relative w-full rounded-md bg-(--color-bg-secondary) flex items-center justify-between"
+      >
+        <input
+          required
+          readOnly
+          type="text"
+          name="company"
+          autoComplete="off"
+          value={selectedCompany || ''}
+          placeholder="Selecciona una compañía"
+          className="w-full px-3 py-2 bg-transparent outline-none cursor-pointer caret-transparent"
+        />
+        <div
+          className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none transition-transform duration-400"
+          style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+        >
+          <ChevronDown />
+        </div>
+
+        {isOpen && (
+          <div
+            id="company-listbox"
+            role="listbox"
+            className="absolute -bottom-2 left-0 z-50 translate-y-full bg-(--color-bg-secondary) border rounded-lg overflow-hidden"
+          >
+            <SelectOptions />
+          </div>
+        )}
+      </button>
+    </div>
+  );
+}
+```
+
+**File location**: `app/(frontend)/search/components/SearchCard/components/CardForm/components/SelectCompanies/SelectCompanies.tsx:7`
+
+### Dropdown Hook
+
+```tsx title="hooks/useDropdown.ts"
+import { useState, useRef, useEffect } from 'react';
+
+export function useDropdown(defaultValue?: string) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedCompany, setSelectedCompany] = useState(defaultValue || '');
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return {
+    isOpen,
+    setIsOpen,
+    dropdownRef,
+    selectedCompany,
+    setSelectedCompany
+  };
+}
+```
+
+<Tip>
+**Click-outside detection**: The dropdown automatically closes when users click outside the component.
+</Tip>
+
+## Data Fetching
+
+### React Query Hook
+
+Search uses React Query for data fetching and caching:
+
+```tsx title="app/(frontend)/hooks/query/useParticipantsQuery.ts"
+import { useQuery } from '@tanstack/react-query';
+import { fetchParticipants } from '@/app/(frontend)/services/fetchParticipants';
+import { queryKeys } from '../../lib/queryKeys';
+
+export function useParticipantsQuery<T>(name: string, company: string) {
+  return useQuery({
+    queryKey: queryKeys.participants(name, company),
+    queryFn: () => fetchParticipants<T>(name, company),
+    enabled: Boolean(name) && Boolean(company),  // Only query when both params exist
+    staleTime: Infinity,  // Always fresh on new params
+    gcTime: Infinity,  // Don't persist old results
+    retry: false,  // Don't retry on error
+    refetchOnWindowFocus: false
+  });
+}
+```
+
+**File location**: `app/(frontend)/hooks/query/useParticipantsQuery.ts:5`
+
+### API Endpoint
+
+The search queries the `/api/participants` endpoint:
+
+```typescript
+GET /api/participants?name=Juan&company=Colegio+A
+```
+
+**Response format**:
+
+```json
+{
+  "participants": [
+    {
+      "id": "123",
+      "name": "Juan",
+      "surname": "García",
+      "company": "Colegio A",
+      "year": 2024
+    }
+  ]
+}
+```
+
+<Note>
+Search parameters are **case-insensitive** and support partial matching on names.
+</Note>
+
+## Search Results
+
+### Results Component
+
+```tsx title="app/(frontend)/search/components/SearchCard/components/SearchResults/components/Results.tsx"
+import { SearchNotFound } from './SearchNotFound';
+import { ResultsPlaceholder } from './ResultsPlaceholder';
+import { ParticipantResultsList } from './ParticipantResultsList';
+import { ResultsLoading } from './ResultsLoading';
+import { useParticipants } from '@/app/(frontend)/search/hooks/useParticipants';
+
+export function Results({ params }: { params: { name: string; company: string } | null }) {
+  const { participants, isLoading, isFetching, isError } = useParticipants({ params });
+
+  if (isLoading || isFetching) return <ResultsLoading />;
+  
+  if (isError) return <SearchNotFound />;
+  
+  if (participants && participants.length > 0)
+    return <ParticipantResultsList participants={participants} />;
+  
+  return <ResultsPlaceholder />;
+}
+```
+
+**File location**: `app/(frontend)/search/components/SearchCard/components/SearchResults/components/Results.tsx:7`
+
+### Loading State
+
+Skeleton screen shown while fetching:
+
+```tsx title="components/ResultsLoading.tsx"
+export function ResultsLoading() {
+  return (
+    <div className="flex flex-col gap-3 animate-pulse">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="p-4 bg-gray-200 rounded-lg">
+          <div className="h-4 bg-gray-300 rounded w-3/4 mb-2" />
+          <div className="h-4 bg-gray-300 rounded w-1/2" />
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+### Empty State
+
+Shown when no results are found:
+
+```tsx title="components/SearchNotFound.tsx"
+export function SearchNotFound() {
+  return (
+    <div className="text-center py-8">
+      <p className="text-lg font-semibold mb-2">No se encontraron resultados</p>
+      <p className="text-sm text-(--color-text-secondary)">
+        Intenta con otro nombre o colegio
+      </p>
+    </div>
+  );
+}
+```
+
+## Form Validation
+
+### Client-Side Validation
+
+The form includes built-in validation:
+
+```tsx title="hooks/useForm.ts"
+import { useState } from 'react';
+
+export function useForm({ onSubmit }) {
+  const [alert, setAlert] = useState('');
+
+  function formSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const name = formData.get('name') as string;
+    const company = formData.get('company') as string;
+
+    // Validation
+    if (!name || name.length < 2) {
+      setAlert('El nombre debe tener al menos 2 caracteres');
+      return;
+    }
+
+    if (!company) {
+      setAlert('Debes seleccionar un colegio');
+      return;
+    }
+
+    // Clear alert and submit
+    setAlert('');
+    onSubmit?.({ name, company });
+  }
+
+  return { formSubmit, alert };
+}
+```
+
+### Error Messages
+
+Errors are displayed with Framer Motion animations:
+
+```tsx
+<AnimatePresence mode="wait">
+  {alert && (
+    <motion.p
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: 'auto' }}
+      exit={{ opacity: 0, height: 0 }}
+      className="text-sm text-(--color-error) font-semibold text-center"
+    >
+      {alert}
+    </motion.p>
+  )}
+</AnimatePresence>
+```
+
+## Accessibility
+
+### ARIA Attributes
+
+The search form is fully accessible:
+
+```tsx
+<form aria-label="Formulario de búsqueda">
+  <label htmlFor="name">Nombre del participante</label>
+  <input
+    id="name"
+    name="name"
+    aria-label="Nombre del participante"
+    required
+  />
+  
+  <button
+    aria-label="Selector de compañías"
+    aria-expanded={isOpen}
+    aria-haspopup="listbox"
+    aria-controls="company-listbox"
+  >
+    Selecciona una compañía
+  </button>
+  
+  <div id="company-listbox" role="listbox">
+    {/* Options */}
+  </div>
+</form>
+```
+
+### Keyboard Navigation
+
+- **Tab**: Navigate between fields
+- **Enter**: Submit form
+- **Escape**: Close dropdown
+- **Arrow keys**: Navigate dropdown options
+
+## Performance Optimizations
+
+### Query Deduplication
+
+React Query automatically deduplicates identical queries:
+
+```tsx
+// Multiple components can call useParticipantsQuery
+// Only 1 HTTP request is made
+const query1 = useParticipantsQuery('Juan', 'Colegio A');
+const query2 = useParticipantsQuery('Juan', 'Colegio A');
+// → Only 1 request to /api/participants
+```
+
+### Infinite Cache
+
+Search results are cached indefinitely:
+
+```tsx
+staleTime: Infinity,
+gcTime: Infinity,
+```
+
+<Info>
+Users can navigate away and return to see cached results instantly without re-fetching.
+</Info>
+
+### Debouncing
+
+The query only runs when both name AND company are provided:
+
+```tsx
+enabled: Boolean(name) && Boolean(company)
+```
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="React Query" icon="arrows-rotate" href="/advanced/react-query">
+    Data fetching and caching patterns
+  </Card>
+  <Card title="Data Visualization" icon="chart-line" href="/features/data-visualization">
+    Chart and table components
+  </Card>
+</CardGroup>

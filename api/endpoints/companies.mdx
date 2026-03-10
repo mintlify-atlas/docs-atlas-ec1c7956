@@ -1,0 +1,430 @@
+---
+title: Get Companies
+api: GET /api/companies
+description: Retrieve the list of all schools and companies that have participated in the Tamborrada Infantil
+---
+
+## Endpoint
+
+```
+GET /api/companies
+```
+
+## Description
+
+Returns an array of all schools and companies ("compañías") that have participated in the Tamborrada Infantil across all recorded years. This list is primarily used for filtering participants by school.
+
+The terms "companies" and "schools" are used interchangeably in the context of the Tamborrada, where each school forms a "compañía" (company/group) for the event.
+
+## Authentication
+
+No authentication required. This is a public endpoint.
+
+## Query Parameters
+
+This endpoint does not accept any query parameters.
+
+## Response
+
+<ResponseField name="companies" type="string[]" required>
+  Array of school/company names that have participated in the event. Names are returned as they appear in the database.
+</ResponseField>
+
+### Success Response (200 OK)
+
+```json
+{
+  "companies": [
+    "Aitor Ikastola",
+    "Aldapeta María Ikastetxea",
+    "Altza Herri Ikastetxea",
+    "Amara Berri",
+    "Amaratarra Txiki",
+    "Amassorrain Ikastola",
+    "Arantzazuko Ama Ikastola",
+    "Axular Lizeoa",
+    "Biteri Zuhaizti Publikoa",
+    "Deutsche Schule",
+    "Ekintza Ikastola",
+    "Elaienea Ikastetxea",
+    "Erain-eskibel Ikastetxea",
+    "Euskal Billera",
+    "Gaztelubide Txiki",
+    "Herrera Ikastetxea",
+    "Herri Ametsa",
+    "Ibai Ikastola",
+    "Ikasbide Ikastola",
+    "Intxaurrondo Ikastola",
+    "Jakintza Ikastola",
+    "Jesuitas San Ignacio",
+    "Kresala Txiki",
+    "La Anunciata",
+    "La Asuncion",
+    "La Salle Ikastetxea",
+    "La Salle San Luis",
+    "Larramendi",
+    "Maria Reina",
+    "Mary Ward",
+    "Orixe",
+    "Otras Compañias",
+    "Sagrado Corazon Mundaiz",
+    "Salesianos Donostia",
+    "San Jose",
+    "San Patricio",
+    "Santa Teresa",
+    "Santo Tomas Lizeoa",
+    "The English School",
+    "Union Artesana 150",
+    "Zurriola Ikastola"
+  ]
+}
+```
+
+### Error Responses
+
+#### No Companies Found (404 Not Found)
+
+```json
+{
+  "error": "No se encontraron compañías disponibles"
+}
+```
+
+Returned when the database contains no company data (unlikely in production).
+
+#### Database Error (500 Internal Server Error)
+
+```json
+{
+  "error": "Error al obtener el estado del sistema",
+  "details": "<technical details>"
+}
+```
+
+Returned when there's an unexpected database or server error.
+
+## Examples
+
+### cURL
+
+```bash
+curl https://tamborradata.com/api/companies
+```
+
+### JavaScript (Fetch)
+
+```javascript
+async function getCompanies() {
+  const response = await fetch('https://tamborradata.com/api/companies');
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error);
+  }
+  
+  const data = await response.json();
+  return data.companies;
+}
+
+// Usage
+const companies = await getCompanies();
+console.log('Available schools:', companies);
+console.log(`Total: ${companies.length} schools`);
+```
+
+### JavaScript (Axios)
+
+```javascript
+const axios = require('axios');
+
+try {
+  const { data } = await axios.get('https://tamborradata.com/api/companies');
+  console.log('Companies:', data.companies);
+  console.log(`Found ${data.companies.length} schools`);
+} catch (error) {
+  console.error('Error:', error.response?.data?.error);
+}
+```
+
+### Python
+
+```python
+import requests
+
+def get_companies():
+    response = requests.get('https://tamborradata.com/api/companies')
+    
+    if response.status_code == 200:
+        data = response.json()
+        return data['companies']
+    else:
+        error = response.json()
+        raise Exception(error['error'])
+
+# Usage
+try:
+    companies = get_companies()
+    print(f"Found {len(companies)} schools")
+    for company in companies[:5]:  # Print first 5
+        print(f"  - {company}")
+except Exception as e:
+    print(f"Error: {e}")
+```
+
+### TypeScript
+
+```typescript
+type CompaniesResponse = {
+  companies: string[];
+};
+
+type ErrorResponse = {
+  error: string;
+  details?: string;
+};
+
+async function getCompanies(): Promise<string[]> {
+  const response = await fetch('https://tamborradata.com/api/companies');
+  
+  if (!response.ok) {
+    const error: ErrorResponse = await response.json();
+    throw new Error(error.error);
+  }
+  
+  const data: CompaniesResponse = await response.json();
+  return data.companies;
+}
+
+// Usage
+try {
+  const companies = await getCompanies();
+  console.log(`Total schools: ${companies.length}`);
+  
+  // Check if a specific school exists
+  const hasAmaraBerri = companies.includes('Amara Berri');
+  console.log('Amara Berri participates:', hasAmaraBerri);
+} catch (error) {
+  console.error('Failed to fetch companies:', error);
+}
+```
+
+## Implementation Details
+
+### Source Code Reference
+
+The endpoint is implemented in:
+- Route: `app/(backend)/api/companies/route.ts:5`
+- Service: `app/(backend)/api/companies/services/companies.service.ts`
+- Repository: `app/(backend)/api/companies/repositories/companies.repo.ts`
+
+### Data Flow
+
+1. Request hits the API route handler
+2. Service layer calls `getCompanies()`
+3. Repository queries `participants` table for distinct schools
+4. Results are sorted alphabetically
+5. Response is returned as JSON array
+
+### Database Query
+
+The endpoint executes:
+
+```sql
+SELECT DISTINCT school 
+FROM participants 
+ORDER BY school ASC;
+```
+
+## Use Cases
+
+### 1. Populate School Dropdown
+
+```javascript
+async function populateSchoolSelect() {
+  const companies = await getCompanies();
+  const select = document.getElementById('school-selector');
+  
+  companies.forEach(company => {
+    const option = document.createElement('option');
+    option.value = company;
+    option.textContent = company;
+    select.appendChild(option);
+  });
+}
+
+// Usage
+await populateSchoolSelect();
+```
+
+### 2. Validate School Name
+
+```javascript
+let validCompanies = null;
+
+async function isValidCompany(schoolName) {
+  if (!validCompanies) {
+    validCompanies = await getCompanies();
+  }
+  return validCompanies.includes(schoolName);
+}
+
+// Usage
+const school = 'Amara Berri';
+if (await isValidCompany(school)) {
+  console.log('Valid school');
+} else {
+  console.error('School not found');
+}
+```
+
+### 3. Search with Autocomplete
+
+```javascript
+async function setupAutocomplete(inputElement) {
+  const companies = await getCompanies();
+  
+  inputElement.addEventListener('input', (e) => {
+    const value = e.target.value.toLowerCase();
+    const matches = companies.filter(c => 
+      c.toLowerCase().includes(value)
+    );
+    
+    displaySuggestions(matches);
+  });
+}
+
+function displaySuggestions(matches) {
+  const list = document.getElementById('suggestions');
+  list.innerHTML = matches
+    .map(m => `<li>${m}</li>`)
+    .join('');
+}
+```
+
+### 4. Group by School Type
+
+```javascript
+function categorizeSchools(companies) {
+  const categories = {
+    ikastola: [],
+    ikastetxea: [],
+    lizeoa: [],
+    other: []
+  };
+  
+  companies.forEach(company => {
+    if (company.includes('Ikastola')) {
+      categories.ikastola.push(company);
+    } else if (company.includes('Ikastetxea')) {
+      categories.ikastetxea.push(company);
+    } else if (company.includes('Lizeoa')) {
+      categories.lizeoa.push(company);
+    } else {
+      categories.other.push(company);
+    }
+  });
+  
+  return categories;
+}
+
+// Usage
+const companies = await getCompanies();
+const categorized = categorizeSchools(companies);
+console.log('Ikastolas:', categorized.ikastola.length);
+console.log('Ikastetxeak:', categorized.ikastetxea.length);
+```
+
+## Notes
+
+<Note>
+  School names are returned exactly as they appear in the database, including proper capitalization and special characters.
+</Note>
+
+<Info>
+  The "Otras Compañias" (Other Companies) entry represents miscellaneous or smaller groups that participate in the event.
+</Info>
+
+<Warning>
+  School names must match exactly when used with the `/api/participants` endpoint. Case and spacing matter.
+</Warning>
+
+## School Name Formats
+
+School names in the database follow these patterns:
+
+- **Ikastolas**: Basque-medium schools (e.g., "Aitor Ikastola")
+- **Ikastetxea**: Schools/educational centers (e.g., "Herrera Ikastetxea")
+- **Lizeoa**: High schools/colleges (e.g., "Axular Lizeoa")
+- **International**: Schools with English/German names (e.g., "The English School", "Deutsche Schule")
+- **Religious**: Catholic schools (e.g., "Jesuitas San Ignacio", "La Salle")
+- **Special Groups**: (e.g., "Union Artesana 150", "Otras Compañias")
+
+## Performance
+
+- **Response Time**: < 100ms (typically)
+- **Database Query**: Simple DISTINCT query with index on `school`
+- **Caching**: Safe to cache for 7-30 days (schools rarely change)
+- **Payload Size**: ~1-2 KB
+
+## Related Endpoints
+
+- [GET /api/participants](/api/endpoints/participants) - Search participants by name and school (requires company name from this endpoint)
+- [GET /api/statistics](/api/endpoints/statistics) - Get school-related statistics
+
+## Error Handling
+
+```javascript
+async function fetchCompaniesSafely() {
+  try {
+    const response = await fetch('https://tamborradata.com/api/companies');
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`API Error: ${error.error}`);
+    }
+    
+    const data = await response.json();
+    
+    if (!data.companies || data.companies.length === 0) {
+      console.warn('No companies available');
+      return [];
+    }
+    
+    return data.companies;
+  } catch (error) {
+    console.error('Failed to fetch companies:', error);
+    return []; // Return empty array as fallback
+  }
+}
+```
+
+## Caching Strategy
+
+Since school lists change infrequently, implement caching:
+
+```javascript
+const COMPANIES_CACHE_KEY = 'tamborradata_companies';
+const CACHE_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+async function getCachedCompanies() {
+  // Check cache first
+  const cached = localStorage.getItem(COMPANIES_CACHE_KEY);
+  if (cached) {
+    const { data, timestamp } = JSON.parse(cached);
+    if (Date.now() - timestamp < CACHE_DURATION) {
+      return data;
+    }
+  }
+  
+  // Fetch fresh data
+  const companies = await getCompanies();
+  
+  // Cache for future use
+  localStorage.setItem(COMPANIES_CACHE_KEY, JSON.stringify({
+    data: companies,
+    timestamp: Date.now()
+  }));
+  
+  return companies;
+}
+```

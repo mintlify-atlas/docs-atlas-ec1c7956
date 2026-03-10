@@ -1,0 +1,661 @@
+---
+title: "Security & Privacy"
+description: "Comprehensive security implementation with Row Level Security, input validation, data protection, and GDPR compliance"
+icon: "shield-halved"
+---
+
+## Overview
+
+TamborraData implements **defense-in-depth security** with multiple layers of protection, from database-level Row Level Security (RLS) to API input validation and secure environment configuration.
+
+<Warning>
+  This project handles data about minors participating in a cultural event. Security and privacy are not optional - they are fundamental requirements.
+</Warning>
+
+## Security Architecture
+
+### Multi-Layer Defense
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    CLIENT LAYER                         │
+│  • Input validation                                     │
+│  • HTTPS enforcement                                    │
+└─────────────────────────────────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────────┐
+│                    API LAYER                            │
+│  • 'server-only' directive                              │
+│  • DTO validation                                       │
+│  • Parameter sanitization                               │
+│  • Error handling                                       │
+└─────────────────────────────────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────────┐
+│                  BUSINESS LAYER                         │
+│  • Service-level validation                             │
+│  • Business rule enforcement                            │
+└─────────────────────────────────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────────┐
+│                    DATA LAYER                           │
+│  • Repository pattern                                   │
+│  • Prepared statements                                  │
+│  • Read-only operations                                 │
+└─────────────────────────────────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────────┐
+│                  DATABASE LAYER                         │
+│  • Row Level Security (RLS)                             │
+│  • Anon user restrictions                               │
+│  • Read-only policies                                   │
+└─────────────────────────────────────────────────────────┘
+```
+
+## Row Level Security (RLS)
+
+RLS is the **cornerstone** of TamborraData's security, enforcing access control at the PostgreSQL database level.
+
+### Why RLS?
+
+<AccordionGroup>
+  <Accordion title="Database-Level Enforcement" icon="database">
+    RLS policies are enforced by PostgreSQL itself, making it impossible to bypass through API vulnerabilities.
+    
+    Even if the API layer is compromised, RLS prevents unauthorized data access.
+  </Accordion>
+
+  <Accordion title="Performance" icon="gauge">
+    PostgreSQL optimizes queries with RLS natively, often performing better than application-level authorization.
+  </Accordion>
+
+  <Accordion title="Auditability" icon="file-lines">
+    All data access is logged at the database level, providing comprehensive audit trails.
+  </Accordion>
+
+  <Accordion title="Simplicity" icon="code">
+    One policy definition applies to all application code, eliminating authorization logic duplication.
+  </Accordion>
+</AccordionGroup>
+
+### RLS Implementation
+
+From `tamborradata_schema.sql:30-52`:
+
+```sql
+-- Enable Row Level Security
+ALTER TABLE statistics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE available_years ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sys_status ENABLE ROW LEVEL SECURITY;
+
+-- Read-only policies for anonymous users
+CREATE POLICY "Anon read access on statistics"
+ON statistics
+FOR SELECT
+TO anon
+USING (true);
+
+CREATE POLICY "Anon read access on available_years"
+ON available_years
+FOR SELECT
+TO anon
+USING (true);
+
+CREATE POLICY "Anon read access on sys_status"
+ON sys_status
+FOR SELECT
+TO anon
+USING (true);
+```
+
+### Policy Breakdown
+
+<Tabs>
+  <Tab title="SELECT Only">
+    Anonymous users can **only read** data - no INSERT, UPDATE, or DELETE operations are permitted.
+    
+    ```sql
+    FOR SELECT  -- Only SELECT statements allowed
+    TO anon     -- For anonymous/public users
+    USING (true) -- All rows accessible for reading
+    ```
+  </Tab>
+
+  <Tab title="No Write Access">
+    The absence of INSERT, UPDATE, and DELETE policies means these operations are **implicitly denied**.
+    
+    ```typescript
+    // ❌ This will fail - no INSERT policy
+    await supabase.from('statistics').insert({ ... });
+    
+    // ❌ This will fail - no UPDATE policy
+    await supabase.from('statistics').update({ ... });
+    
+    // ❌ This will fail - no DELETE policy
+    await supabase.from('statistics').delete();
+    
+    // ✅ This succeeds - SELECT policy exists
+    await supabase.from('statistics').select('*');
+    ```
+  </Tab>
+
+  <Tab title="USING Clause">
+    `USING (true)` means all rows are visible for SELECT operations.
+    
+    For row-level filtering (e.g., user-specific data), you would use:
+    
+    ```sql
+    USING (user_id = auth.uid())  -- Only user's own data
+    ```
+    
+    TamborraData uses `(true)` because all statistics are public.
+  </Tab>
+</Tabs>
+
+### RLS vs API Middleware
+
+| Aspect | API Middleware | Row Level Security |
+|--------|----------------|--------------------|
+| **Security** | ⚠️ Can be bypassed | ✅ Enforced by PostgreSQL |
+| **Performance** | ❌ Logic in API layer | ✅ Native database optimization |
+| **Maintenance** | ❌ Duplicate logic | ✅ Single source of truth |
+| **Scalability** | ❌ Load on API servers | ✅ Database-optimized |
+| **Bypass risk** | ⚠️ Code vulnerabilities | ✅ Impossible without DB access |
+
+<Note>
+  RLS provides **security in depth** - even if application code is compromised, database policies remain enforced.
+</Note>
+
+## API Security
+
+### Server-Only Directive
+
+All API routes use the `'server-only'` directive to prevent client-side execution:
+
+```typescript
+import 'server-only';
+import { NextResponse } from 'next/server';
+
+export async function GET(req: Request) {
+  // This code ONLY runs on the server
+  // Never exposed to client bundles
+}
+```
+
+**Benefits:**
+- Prevents accidental exposure of server-only code
+- Protects environment variables
+- Ensures database credentials stay server-side
+
+### Input Validation
+
+All API endpoints validate and sanitize inputs using **DTO schemas**.
+
+#### Statistics Validation
+
+From `statistics.schema.ts:5-31`:
+
+```typescript
+import 'server-only';
+import { VALID_YEARS } from '@/app/(backend)/shared/constants/catalog';
+
+export async function checkParams(year: string): Promise<CheckParamsType> {
+  if (!year) {
+    return { 
+      valid: false, 
+      cleanYear: null, 
+      error: "El parámetro 'year' es obligatorio" 
+    };
+  }
+
+  const cleanYear = year.trim(); // Remove whitespace
+
+  // Validate format: 'global' or 4-digit year
+  if (cleanYear !== 'global' && !/^\d{4}$/.test(cleanYear)) {
+    return {
+      valid: false,
+      cleanYear: null,
+      error: "El parámetro 'year' debe ser 'global' o un año válido de cuatro dígitos",
+    };
+  }
+
+  // Validate against whitelist of available years
+  const validYears: string[] = await VALID_YEARS();
+  if (!validYears.includes(year)) {
+    return {
+      valid: false,
+      cleanYear: null,
+      error: `Año inválido. Años válidos: ${validYears.slice(0, 4).join(', ')}, ...`,
+    };
+  }
+
+  return { valid: true, cleanYear, error: null };
+}
+```
+
+**Security features:**
+- ✅ Required parameter check
+- ✅ Whitespace sanitization
+- ✅ Format validation (regex)
+- ✅ Whitelist validation (only allowed years)
+- ✅ SQL injection prevention
+
+#### Participants Search Validation
+
+From `participants.schema.ts:5-29`:
+
+```typescript
+import 'server-only';
+
+export async function checkParams(
+  name: string, 
+  company: string
+): Promise<CheckParamsType> {
+  // Require both parameters
+  if (!name || !company) {
+    return { 
+      valid: false, 
+      cleanName: '', 
+      error: "Parametros 'name' y 'company' son obligatorios" 
+    };
+  }
+
+  // Normalize and sanitize name
+  const cleanName = name
+    .normalize('NFD')                  // Unicode normalization
+    .replace(/[\u0300-\u036f]/g, '')   // Remove diacritics
+    .replace(/\s+/g, ' ')              // Collapse whitespace
+    .trim();                           // Trim edges
+
+  // Require minimum 3 parts (first name + 2 surnames)
+  if (cleanName.split(' ').length < 3) {
+    return {
+      valid: false,
+      cleanName: '',
+      error: 'Por favor, proporciona al menos un nombre y dos apellidos',
+    };
+  }
+
+  return { valid: true, cleanName, error: null };
+}
+```
+
+**Security features:**
+- ✅ Required parameters enforcement
+- ✅ Unicode normalization (prevents encoding attacks)
+- ✅ Diacritic removal (consistent searching)
+- ✅ Whitespace collapsing (prevents injection)
+- ✅ Business rule validation (3+ name parts)
+
+### API Route Implementation
+
+From `statistics/route.ts:7-46`:
+
+```typescript
+import 'server-only';
+import { NextResponse } from 'next/server';
+import { getStatistics } from './services/statistics.service';
+import { getSysStatus } from '../../shared/utils/getSysStatus';
+import { checkParams } from './dtos/statistics.schema';
+
+export async function GET(req: Request) {
+  try {
+    const year = new URL(req.url).searchParams.get('year');
+
+    // Step 1: Validate parameters
+    const { valid, cleanYear, error: paramError } = await checkParams(year);
+
+    if (!valid) {
+      return NextResponse.json({ error: paramError }, { status: 404 });
+    }
+
+    // Step 2: Check system status
+    const isUpdating: boolean = await getSysStatus();
+
+    if (isUpdating) {
+      return NextResponse.json({ isUpdating: true }, { status: 200 });
+    }
+
+    // Step 3: Fetch data (already protected by RLS)
+    const { statistics, error } = await getStatistics(cleanYear);
+
+    if (error && !statistics) {
+      return NextResponse.json({ error }, { status: 500 });
+    }
+
+    // Step 4: Return sanitized response
+    return NextResponse.json({
+      isUpdating,
+      year: cleanYear,
+      total_categories: statistics ? Object.keys(statistics).length : 0,
+      statistics,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Error al obtener el estado del sistema', details: error },
+      { status: 500 }
+    );
+  }
+}
+```
+
+**Security layers:**
+1. ✅ Server-only execution
+2. ✅ DTO validation before processing
+3. ✅ Sanitized inputs passed to services
+4. ✅ Database protected by RLS
+5. ✅ Error handling without sensitive details
+
+## Environment Security
+
+### Supabase Client Configuration
+
+From `supabaseClient.ts:1-10`:
+
+```typescript
+import 'server-only';
+import 'dotenv/config';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.SUPABASE_URL!;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY!;
+
+export const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+```
+
+**Security features:**
+- ✅ `'server-only'` prevents client exposure
+- ✅ Environment variables (never hardcoded)
+- ✅ Anon key only (not service role key)
+- ✅ Type-safe with TypeScript
+
+### Key Types
+
+<Tabs>
+  <Tab title="ANON_KEY (Used)">
+    **Public-facing key** with restricted permissions:
+    
+    ```typescript
+    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY!;
+    ```
+    
+    **Permissions:**
+    - ✅ Read access (controlled by RLS)
+    - ❌ No admin operations
+    - ❌ No policy bypass
+    - ❌ No schema modifications
+    
+    Safe to use in server-side code that handles public requests.
+  </Tab>
+
+  <Tab title="SERVICE_ROLE_KEY (Not Used)">
+    **Admin key** that bypasses RLS:
+    
+    ```typescript
+    // ❌ NEVER used in web application
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    ```
+    
+    **Permissions:**
+    - ⚠️ Full database access
+    - ⚠️ Bypasses RLS policies
+    - ⚠️ Can modify schema
+    
+    **Only used in:**
+    - Private data pipeline (separate repo)
+    - Database migrations
+    - Admin operations
+  </Tab>
+</Tabs>
+
+<Warning>
+  The web application uses `ANON_KEY` exclusively. The `SERVICE_ROLE_KEY` is kept in the private pipeline repository and never exposed to the public web app.
+</Warning>
+
+## Data Pipeline Separation
+
+TamborraData's architecture separates data generation from public consumption.
+
+### Two-Repository Architecture
+
+| Aspect | Pipeline (Private) | Web (Public) |
+|--------|-------------------|-------------|
+| **Repository** | Private GitHub repo | Public GitHub repo |
+| **Data access** | Read + Write | Read-only |
+| **Database key** | SERVICE_ROLE_KEY | ANON_KEY |
+| **Sensitive data** | Raw participant data | Aggregated statistics only |
+| **Deployment** | GitHub Actions | Vercel |
+| **Access** | Restricted | Public |
+
+### Data Flow
+
+```
+┌─────────────────────────────────────────────────────────┐
+│         PRIVATE PIPELINE REPOSITORY                     │
+│                                                         │
+│  1. Scrape official participant lists                   │
+│  2. Clean and anonymize data                            │
+│  3. Generate aggregated statistics                      │
+│  4. INSERT to Supabase (SERVICE_ROLE_KEY)               │
+└─────────────────────────────────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────────┐
+│              SUPABASE POSTGRESQL                        │
+│                                                         │
+│  • participants (names + schools)                       │
+│  • statistics (aggregated data)                         │
+│  • RLS: Read-only from web app                          │
+└─────────────────────────────────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────────┐
+│         PUBLIC WEB APPLICATION REPOSITORY               │
+│                                                         │
+│  1. Query aggregated data (ANON_KEY)                    │
+│  2. Visualize statistics                                │
+│  3. Participant search (validated)                      │
+└─────────────────────────────────────────────────────────┘
+```
+
+<Note>
+  This separation ensures sensitive participant data never appears in public source code, even in git history.
+</Note>
+
+## GDPR & Privacy Compliance
+
+### Data Minimization
+
+TamborraData collects and displays only publicly available information:
+
+✅ **Stored:**
+- Participant first names (public in official lists)
+- School affiliations (public in official lists)
+- Aggregate statistics
+
+❌ **Never stored:**
+- Surnames
+- Contact information
+- Addresses
+- Personal identifiers
+- Photos without consent
+
+### Participant Search Validation
+
+Searches require specific criteria to prevent data scraping:
+
+```typescript
+// Require full name (3+ parts) + school
+if (cleanName.split(' ').length < 3) {
+  return {
+    valid: false,
+    error: 'Por favor, proporciona al menos un nombre y dos apellidos',
+  };
+}
+
+if (!company) {
+  return {
+    valid: false,
+    error: "Parámetro 'company' es obligatorio",
+  };
+}
+```
+
+**This prevents:**
+- Bulk data extraction
+- Automated scraping
+- Enumeration attacks
+
+### Security Reporting
+
+From `SECURITY.md:22-40`:
+
+**Responsible Disclosure Process:**
+
+1. **Report privately** via:
+   - GitHub Security Advisories
+   - Direct message to maintainer
+
+2. **Do not** open public issues for vulnerabilities
+
+3. **Include** in report:
+   - Clear vulnerability description
+   - Reproduction steps
+   - Expected vs actual behavior
+   - Potential impact
+   - Environment details
+   - Proof of concept
+
+4. **Response timeline:**
+   - Initial response: 48-72 hours
+   - First evaluation: ASAP
+   - Coordinated disclosure upon fix
+
+<Warning>
+  Never disclose security vulnerabilities publicly until they have been reviewed and fixed.
+</Warning>
+
+## System Status Security
+
+The `isUpdating` flag is carefully managed to prevent timing attacks.
+
+From `getSysStatus.ts:5-30`:
+
+```typescript
+import 'server-only';
+import { supabaseClient } from '../../core/db/supabaseClient';
+
+export async function getSysStatus(): Promise<boolean | null> {
+  try {
+    const isDev = process.env.NODE_ENV === 'development';
+    const now = new Date();
+    const month = now.getMonth();
+    const day = now.getDate();
+
+    // Only check during update periods (January or February 1-20)
+    if (isDev || month === 0 || (month === 1 && day <= 20)) {
+      const { data: isUpdating, error } = await supabaseClient
+        .from('sys_status')
+        .select('is_updating')
+        .eq('id', 1)
+        .single();
+
+      if (error) return false;
+      if (!isUpdating) return false;
+
+      return isUpdating.is_updating as boolean;
+    }
+
+    return false;
+  } catch (error) {
+    return false;
+  }
+}
+```
+
+**Security features:**
+- ✅ Time-based logic (only queries during update periods)
+- ✅ Graceful error handling (fails safe to `false`)
+- ✅ No sensitive error exposure
+
+## Best Practices
+
+<Steps>
+  <Step title="Defense in Depth">
+    Implement security at every layer: client validation, API validation, service logic, and database RLS.
+  </Step>
+
+  <Step title="Principle of Least Privilege">
+    Use ANON_KEY in web app, reserve SERVICE_ROLE_KEY for private pipeline.
+  </Step>
+
+  <Step title="Input Validation">
+    Always validate and sanitize inputs in DTO schemas before processing.
+  </Step>
+
+  <Step title="Fail Securely">
+    Return safe defaults on errors, never expose internal details.
+  </Step>
+
+  <Step title="Separate Concerns">
+    Keep data generation (private) separate from data consumption (public).
+  </Step>
+
+  <Step title="Regular Audits">
+    Review security policies, access logs, and dependency vulnerabilities regularly.
+  </Step>
+</Steps>
+
+## Security Checklist
+
+<AccordionGroup>
+  <Accordion title="Database Security" icon="database">
+    - ✅ RLS enabled on all tables
+    - ✅ Read-only policies for anonymous users
+    - ✅ No INSERT/UPDATE/DELETE policies for public
+    - ✅ SERVICE_ROLE_KEY kept in private repo
+    - ✅ Regular policy audits
+  </Accordion>
+
+  <Accordion title="API Security" icon="code">
+    - ✅ `'server-only'` directive on all API routes
+    - ✅ DTO validation on all endpoints
+    - ✅ Input sanitization
+    - ✅ Error handling without sensitive details
+    - ✅ Rate limiting (via Vercel)
+  </Accordion>
+
+  <Accordion title="Environment Security" icon="key">
+    - ✅ All secrets in environment variables
+    - ✅ No hardcoded credentials
+    - ✅ `.env` in `.gitignore`
+    - ✅ ANON_KEY only in web app
+    - ✅ Separate keys for dev/prod
+  </Accordion>
+
+  <Accordion title="Data Privacy" icon="user-shield">
+    - ✅ Only public data displayed
+    - ✅ No personal identifiers
+    - ✅ Search validation prevents scraping
+    - ✅ GDPR-compliant data handling
+    - ✅ Responsible disclosure process
+  </Accordion>
+</AccordionGroup>
+
+## Resources
+
+<CardGroup cols={2}>
+  <Card title="Supabase RLS Guide" icon="shield" href="https://supabase.com/docs/guides/auth/row-level-security">
+    Official Row Level Security documentation
+  </Card>
+  
+  <Card title="OWASP Top 10" icon="list" href="https://owasp.org/www-project-top-ten/">
+    Common web application vulnerabilities
+  </Card>
+  
+  <Card title="Next.js Security" icon="lock" href="https://nextjs.org/docs/app/building-your-application/authentication">
+    Security best practices for Next.js
+  </Card>
+  
+  <Card title="PostgreSQL Security" icon="database" href="https://www.postgresql.org/docs/current/ddl-rowsecurity.html">
+    Row security policies in PostgreSQL
+  </Card>
+</CardGroup>

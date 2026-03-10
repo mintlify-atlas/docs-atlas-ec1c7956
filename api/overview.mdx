@@ -1,0 +1,129 @@
+---
+title: API Overview
+description: Introduction to the TamborraData REST API
+---
+
+## Introduction
+
+The TamborraData API provides programmatic access to historical data about the San Sebastián Children's Tamborrada (Tamborrada Infantil). The API follows REST principles and returns JSON responses.
+
+## Base URL
+
+```
+https://tamborradata.com/api
+```
+
+For local development:
+
+```
+http://localhost:3000/api
+```
+
+## Authentication
+
+The TamborraData API is **publicly accessible** and does not require authentication. All endpoints are available for read-only access without API keys.
+
+<Note>
+  The API is read-only. No authentication is required, but write operations are not permitted.
+</Note>
+
+## API Architecture
+
+The API is built using Next.js 16 App Router with the following architecture:
+
+- **Route Layer**: Next.js API Routes handle HTTP requests
+- **Service Layer**: Business logic and data processing
+- **Repository Layer**: Database queries using Supabase PostgreSQL
+- **Database**: PostgreSQL with Row Level Security (RLS)
+
+## Rate Limits
+
+Currently, there are no enforced rate limits on the API. However, please use the API responsibly:
+
+- Cache responses when possible
+- Avoid excessive polling
+- Use appropriate intervals for data updates
+
+<Warning>
+  Rate limits may be introduced in the future to ensure fair usage.
+</Warning>
+
+## Data Freshness
+
+The TamborraData database is updated annually in January with new data from the previous year's event. During update periods:
+
+- The system may return `isUpdating: true`
+- Some endpoints may return limited data
+- Check the `/api/statistics` endpoint for system status
+
+## Response Format
+
+All API responses follow a consistent JSON format. See the [Response Format](/api/response-format) documentation for details.
+
+## Error Handling
+
+The API uses standard HTTP status codes and returns error messages in JSON format. See the [Errors](/api/errors) documentation for details.
+
+## Available Endpoints
+
+The TamborraData API exposes 5 main endpoints:
+
+<CardGroup cols={2}>
+  <Card title="Years" icon="calendar" href="/api/endpoints/years">
+    Get list of available years with data
+  </Card>
+  
+  <Card title="Statistics" icon="chart-line" href="/api/endpoints/statistics">
+    Retrieve complete statistics for a specific year
+  </Card>
+  
+  <Card title="Category" icon="layer-group" href="/api/endpoints/category">
+    Get detailed data for a specific category and year
+  </Card>
+  
+  <Card title="Companies" icon="building" href="/api/endpoints/companies">
+    List all participating schools/companies
+  </Card>
+  
+  <Card title="Participants" icon="users" href="/api/endpoints/participants">
+    Search for individual participants by name and school
+  </Card>
+</CardGroup>
+
+## Quick Start
+
+Here's a simple example to get started:
+
+```bash
+# Get available years
+curl https://tamborradata.com/api/years
+
+# Get statistics for 2024
+curl https://tamborradata.com/api/statistics?year=2024
+
+# Search for participants
+curl "https://tamborradata.com/api/participants?name=Juan%20Garcia%20Lopez&company=Amara%20Berri"
+```
+
+## TypeScript Support
+
+The API is built with TypeScript. Type definitions are available in the source code:
+
+- `app/(backend)/api/*/types/index.ts` - Response and request types
+- Full type safety for integration with TypeScript projects
+
+## Data License
+
+This project is licensed under [Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)](https://creativecommons.org/licenses/by-sa/4.0/).
+
+When using the API data:
+- Provide appropriate attribution
+- Share adaptations under the same license
+- Link to https://tamborradata.com
+
+## Support
+
+For questions or issues:
+
+- GitHub: [https://github.com/ramistodev](https://github.com/ramistodev)
+- Website: [https://tamborradata.com](https://tamborradata.com)

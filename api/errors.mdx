@@ -1,0 +1,303 @@
+---
+title: Error Handling
+description: Understanding error responses and status codes in the TamborraData API
+---
+
+## HTTP Status Codes
+
+The TamborraData API uses standard HTTP status codes to indicate the success or failure of requests.
+
+<ResponseField name="200" type="OK">
+  The request was successful and data is returned.
+</ResponseField>
+
+<ResponseField name="400" type="Bad Request">
+  The request was malformed or missing required parameters.
+</ResponseField>
+
+<ResponseField name="404" type="Not Found">
+  The requested resource was not found (e.g., invalid year).
+</ResponseField>
+
+<ResponseField name="500" type="Internal Server Error">
+  An unexpected error occurred on the server.
+</ResponseField>
+
+## Error Response Format
+
+All error responses follow a consistent JSON structure:
+
+```json
+{
+  "error": "Error message describing what went wrong"
+}
+```
+
+For detailed errors, an optional `details` field may be included:
+
+```json
+{
+  "error": "Error al obtener el estado del sistema",
+  "details": "Additional technical information"
+}
+```
+
+## Common Errors
+
+### Missing Required Parameters
+
+**Status Code**: `400 Bad Request`
+
+```json
+{
+  "error": "El parámetro 'year' es obligatorio"
+}
+```
+
+Occurs when a required query parameter is not provided.
+
+**Example**:
+```bash
+curl https://tamborradata.com/api/statistics
+# Missing required 'year' parameter
+```
+
+### Invalid Year Format
+
+**Status Code**: `404 Not Found`
+
+```json
+{
+  "error": "El parámetro 'year' debe ser 'global' o un año válido de cuatro dígitos"
+}
+```
+
+Occurs when the year parameter is not in the correct format (YYYY or "global").
+
+**Example**:
+```bash
+curl https://tamborradata.com/api/statistics?year=24
+# Invalid format - must be 4 digits (2024) or "global"
+```
+
+### Year Not Available
+
+**Status Code**: `404 Not Found`
+
+```json
+{
+  "error": "Año inválido. Años válidos: 2024, 2025, global, ..."
+}
+```
+
+Occurs when requesting data for a year that doesn't exist in the database.
+
+**Example**:
+```bash
+curl https://tamborradata.com/api/statistics?year=2015
+# Data not available for 2015
+```
+
+### Invalid Category
+
+**Status Code**: `400 Bad Request`
+
+```json
+{
+  "error": "Categoría inválida. Esa categoria no existe"
+}
+```
+
+Occurs when requesting a category that doesn't exist.
+
+**Valid categories**:
+- `commonNameBySchool`
+- `commonNameBySchoolByYear`
+- `intro`
+- `longestNames`
+- `mostConstantSchools`
+- `namesDiversity`
+- `namesDiversityByYear`
+- `newNamesByYear`
+- `newSchoolsByYear`
+- `outro`
+- `schoolsEvolution`
+- `surnamesDiversity`
+- `surnamesDiversityByYear`
+- `topNames`
+- `topNamesByYear`
+- `topSchools`
+- `topSchoolsByYear`
+- `topSurnames`
+- `topSurnamesByYear`
+- `totalParticipants`
+- `totalParticipantsByYear`
+
+### Invalid Participant Name
+
+**Status Code**: `400 Bad Request`
+
+```json
+{
+  "error": "Por favor, proporciona al menos un nombre y dos apellidos"
+}
+```
+
+Occurs when searching participants with insufficient name parts (requires at least first name and two surnames).
+
+**Example**:
+```bash
+curl "https://tamborradata.com/api/participants?name=Juan&company=Amara%20Berri"
+# Need full name: "Juan Garcia Lopez"
+```
+
+### No Results Found
+
+**Status Code**: `404 Not Found`
+
+```json
+{
+  "error": "No se encontraron años disponibles"
+}
+```
+
+or
+
+```json
+{
+  "error": "No se encontraron compañías disponibles"
+}
+```
+
+or
+
+```json
+{
+  "error": "Error: No participants found"
+}
+```
+
+Occurs when a valid request returns no data.
+
+### Database Errors
+
+**Status Code**: `500 Internal Server Error`
+
+```json
+{
+  "error": "Error de la base de datos"
+}
+```
+
+Occurs when there's a problem querying the database.
+
+### System Updating
+
+**Status Code**: `200 OK` (Not an error)
+
+```json
+{
+  "isUpdating": true
+}
+```
+
+During annual data updates (typically in January), the system returns this response to indicate maintenance is in progress. This is not an error, but indicates limited data availability.
+
+## Error Handling Best Practices
+
+### 1. Always Check Status Codes
+
+```javascript
+const response = await fetch('https://tamborradata.com/api/years');
+
+if (!response.ok) {
+  const error = await response.json();
+  console.error(`API Error (${response.status}):`, error.error);
+  throw new Error(error.error);
+}
+
+const data = await response.json();
+```
+
+### 2. Handle Specific Error Cases
+
+```javascript
+try {
+  const response = await fetch(
+    'https://tamborradata.com/api/statistics?year=2024'
+  );
+  const data = await response.json();
+  
+  if (response.status === 404) {
+    console.log('Year not available');
+  } else if (response.status === 400) {
+    console.log('Invalid request parameters');
+  } else if (!response.ok) {
+    console.error('API Error:', data.error);
+  } else if (data.isUpdating) {
+    console.log('System is updating, try again later');
+  } else {
+    console.log('Statistics:', data.statistics);
+  }
+} catch (error) {
+  console.error('Network error:', error);
+}
+```
+
+### 3. Implement Retry Logic
+
+```javascript
+async function fetchWithRetry(url, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) {
+        return await response.json();
+      }
+      if (response.status === 404 || response.status === 400) {
+        // Don't retry client errors
+        throw new Error(await response.text());
+      }
+    } catch (error) {
+      if (i === maxRetries - 1) throw error;
+      await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+    }
+  }
+}
+```
+
+### 4. Validate Parameters Client-Side
+
+```javascript
+function validateYear(year) {
+  if (year === 'global') return true;
+  return /^\d{4}$/.test(year);
+}
+
+function validateName(name) {
+  const parts = name.trim().split(' ').filter(p => p.length > 0);
+  return parts.length >= 3; // First name + 2 surnames
+}
+
+// Use before making API calls
+if (!validateYear(year)) {
+  console.error('Invalid year format');
+  return;
+}
+```
+
+## Rate Limiting (Future)
+
+While rate limiting is not currently enforced, it may be added in the future. Recommended practices:
+
+- Implement exponential backoff for retries
+- Cache responses locally
+- Respect `Retry-After` headers if/when implemented
+
+## Support
+
+If you encounter persistent errors or unexpected behavior:
+
+1. Verify your request matches the [API documentation](/api/overview)
+2. Check the specific endpoint documentation
+3. Report issues on [GitHub](https://github.com/ramistodev)

@@ -1,0 +1,92 @@
+---
+title: "Introduction"
+description: "Explore historical data from the Tamborrada Infantil of Donostia-San Sebastián"
+---
+
+## Welcome to TamborraData
+
+TamborraData is a web platform that analyzes and visualizes the historical evolution of the Tamborrada Infantil (Children's Drum Parade) in San Sebastián through data. The platform provides an accessible, structured digital archive of this important cultural event, serving citizens, media, researchers, and enthusiasts.
+
+<Note>
+This is the first public, structured data source dedicated exclusively to preserving and showcasing the digital history of this cultural event.
+</Note>
+
+## What is the Tamborrada Infantil?
+
+The Tamborrada Infantil is a children's drum parade held annually in San Sebastián (Donostia), Spain. It's a cultural tradition where schoolchildren participate in organized groups, representing their schools while marching through the city with drums and barrels.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Interactive Visualizations" icon="chart-line" href="/features/data-visualization">
+    Explore statistics through dynamic charts powered by Nivo
+  </Card>
+  <Card title="Participant Search" icon="magnifying-glass" href="/features/participant-search">
+    Search for participants across all years and schools
+  </Card>
+  <Card title="Historical Statistics" icon="clock-rotate-left" href="/features/statistics-explorer">
+    Analyze trends and participation patterns by year and category
+  </Card>
+  <Card title="Annual Updates" icon="rotate" href="/features/annual-updates">
+    Automatic data updates every January with new statistics
+  </Card>
+</CardGroup>
+
+## Use Cases
+
+TamborraData serves multiple audiences with different needs:
+
+<Accordion title="For Citizens & Families">
+  Search for participant records, explore participation trends by school, and discover historical statistics about this beloved tradition.
+</Accordion>
+
+<Accordion title="For Media & Journalists">
+  Access original, structured data for reporting and analysis. Generate insights about participation trends, school representation, and cultural impact.
+</Accordion>
+
+<Accordion title="For Researchers">
+  Analyze longitudinal data about cultural participation patterns, demographic trends, and the evolution of this traditional event over time.
+</Accordion>
+
+<Accordion title="For Developers">
+  Integrate TamborraData's REST API into your applications to access historical statistics and participant information programmatically.
+</Accordion>
+
+## Quick Links
+
+<CardGroup cols={2}>
+  <Card title="Get Started" icon="rocket" href="/quickstart">
+    Set up the project locally in minutes
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore the REST API endpoints
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/architecture/overview">
+    Learn about the technical design
+  </Card>
+  <Card title="Live Platform" icon="globe" href="https://tamborradata.com">
+    Visit the production website
+  </Card>
+</CardGroup>
+
+## Project Background
+
+TamborraData is a full-stack engineering project developed by **RamistoDev**. The platform separates data generation (private pipeline) from public web access, ensuring privacy protection while providing valuable cultural insights.
+
+<Info>
+The platform uses mock data for local development. The actual data generation pipeline is maintained in a private repository to protect sensitive information about minors.
+</Info>
+
+## Technology Stack
+
+Built with modern web technologies:
+
+- **Frontend**: Next.js 16, React 19, TypeScript, TailwindCSS 4
+- **Backend**: Next.js API Routes, Supabase PostgreSQL
+- **State Management**: React Query 5 with server-side rendering
+- **Data Visualization**: Nivo charts with Framer Motion animations
+- **Deployment**: Vercel with edge functions
+
+## License
+
+This project is available under the **Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)** license. See the [LICENSE](https://github.com/ramistodev/tamborradata/blob/main/LICENSE) and [NOTICE](https://github.com/ramistodev/tamborradata/blob/main/NOTICE) files for details.

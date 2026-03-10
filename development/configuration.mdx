@@ -1,0 +1,610 @@
+---
+title: Configuration Guide
+description: Complete reference for environment variables and configuration files
+icon: gear
+---
+
+# Configuration Guide
+
+This guide covers all configuration options for TamborraData, including environment variables, Next.js configuration, and TypeScript settings.
+
+---
+
+## Environment Variables
+
+### Overview
+
+TamborraData uses environment variables for configuration. Variables are loaded from `.env.local` for local development and configured in Vercel for production.
+
+<Note>
+  `.env.local` is ignored by Git and should never be committed. Use `.env.example` as a template.
+</Note>
+
+### Required Variables
+
+<ParamField path="SUPABASE_URL" type="string" required>
+  Your Supabase project URL.
+  
+  **Format**: `https://xxxxx.supabase.co`  
+  **Example**: `https://abcdefghijk.supabase.co`
+  
+  **Where to find**: Supabase Dashboard > Settings > API > Project URL
+</ParamField>
+
+<ParamField path="SUPABASE_ANON_KEY" type="string" required>
+  Your Supabase anonymous/public API key.
+  
+  **Format**: JWT token starting with `eyJ...`  
+  **Example**: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`
+  
+  **Where to find**: Supabase Dashboard > Settings > API > Project API keys > `anon` `public`
+  
+  <Warning>
+    Use the **anon/public** key, NOT the service_role key. The service_role key bypasses Row Level Security and should never be exposed to the client.
+  </Warning>
+</ParamField>
+
+### Environment File Structure
+
+Create `.env.local` in your project root:
+
+```bash .env.local
+# Supabase credentials
+SUPABASE_URL="https://xxxxx.supabase.co"
+SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+<Tip>
+  Always use double quotes around values. This prevents issues with special characters in keys.
+</Tip>
+
+### Environment Loading
+
+Next.js automatically loads environment variables from:
+
+1. `.env.local` (local development, highest priority)
+2. `.env.production` (production builds)
+3. `.env.development` (development builds)
+4. `.env` (all environments, lowest priority)
+
+<CodeGroup>
+```bash Local Development
+# .env.local (gitignored)
+SUPABASE_URL="your-dev-database-url"
+SUPABASE_ANON_KEY="your-dev-key"
+```
+
+```bash Production (Vercel)
+# Set in Vercel Dashboard > Settings > Environment Variables
+SUPABASE_URL="your-production-database-url"
+SUPABASE_ANON_KEY="your-production-key"
+```
+</CodeGroup>
+
+---
+
+## Next.js Configuration
+
+### File: `next.config.ts`
+
+The Next.js configuration file controls framework behavior, redirects, headers, and optimizations.
+
+```typescript next.config.ts
+import type { NextConfig } from 'next';
+
+const nextConfig: NextConfig = {
+  // Domain redirect (production only)
+  async redirects() {
+    const redirects = [];
+
+    if (process.env.NODE_ENV === 'production') {
+      redirects.push({
+        source: '/:path*',
+        has: [{
+          type: 'host' as const,
+          value: 'www.tamborradata.com',
+        }],
+        destination: 'https://tamborradata.com/:path*',
+        permanent: true,
+      });
+    }
+
+    return redirects;
+  },
+
+  // Performance & Security
+  poweredByHeader: false,
+  compress: true,
+
+  // Security Headers
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          { key: 'X-DNS-Prefetch-Control', value: 'on' },
+          { key: 'X-XSS-Protection', value: '1; mode=block' },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'origin-when-cross-origin' },
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains; preload',
+          },
+        ],
+      },
+    ];
+  },
+};
+
+export default nextConfig;
+```
+
+### Configuration Options Explained
+
+<AccordionGroup>
+  <Accordion title="Redirects" icon="arrow-right">
+    **Purpose**: Force non-www domain in production.
+    
+    ```typescript
+    async redirects() {
+      // Only in production
+      if (process.env.NODE_ENV === 'production') {
+        return [{
+          source: '/:path*',
+          has: [{ type: 'host', value: 'www.tamborradata.com' }],
+          destination: 'https://tamborradata.com/:path*',
+          permanent: true,  // 301 redirect
+        }];
+      }
+      return [];
+    }
+    ```
+    
+    **Behavior**: `www.tamborradata.com` → `tamborradata.com`
+  </Accordion>
+  
+  <Accordion title="Security Headers" icon="shield">
+    **Purpose**: Enhance security and prevent common attacks.
+    
+    | Header | Value | Purpose |
+    |--------|-------|----------|
+    | `X-DNS-Prefetch-Control` | `on` | Enable DNS prefetching |
+    | `X-XSS-Protection` | `1; mode=block` | Block XSS attacks |
+    | `X-Frame-Options` | `DENY` | Prevent clickjacking |
+    | `X-Content-Type-Options` | `nosniff` | Prevent MIME sniffing |
+    | `Referrer-Policy` | `origin-when-cross-origin` | Control referrer info |
+    | `Strict-Transport-Security` | `max-age=63072000` | Force HTTPS |
+    
+    <Tip>
+      These headers are automatically applied to all routes.
+    </Tip>
+  </Accordion>
+  
+  <Accordion title="Performance Options" icon="gauge-high">
+    **`poweredByHeader: false`**  
+    Removes `X-Powered-By: Next.js` header for security (hides framework).
+    
+    **`compress: true`**  
+    Enables gzip/brotli compression for responses.
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+  Do not modify `next.config.ts` unless you understand the implications. Incorrect configuration can break routing or security.
+</Warning>
+
+---
+
+## TypeScript Configuration
+
+### File: `tsconfig.json`
+
+TypeScript configuration for the project.
+
+```json tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "noEmit": true,
+    "incremental": true,
+    "module": "esnext",
+    "esModuleInterop": true,
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "plugins": [{ "name": "next" }],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}
+```
+
+### Key Settings
+
+<ParamField path="target" type="string" default="ES2017">
+  ECMAScript version for compiled JavaScript.
+</ParamField>
+
+<ParamField path="strict" type="boolean" default="false">
+  **Currently disabled** for faster development.  
+  
+  <Tip>
+    Consider enabling `"strict": true` for production-ready code. This enables:
+    - `strictNullChecks`
+    - `strictFunctionTypes`
+    - `strictBindCallApply`
+    - `strictPropertyInitialization`
+  </Tip>
+</ParamField>
+
+<ParamField path="moduleResolution" type="string" default="bundler">
+  Uses modern bundler resolution (Node16 + extras).
+</ParamField>
+
+<ParamField path="paths" type="object">
+  Path aliases for imports.
+  
+  ```typescript
+  // Instead of:
+  import Component from '../../../components/Component';
+  
+  // You can write:
+  import Component from '@/components/Component';
+  ```
+</ParamField>
+
+---
+
+## TailwindCSS Configuration
+
+### File: `tailwind.config.ts`
+
+TamborraData uses **TailwindCSS 4** with CSS-first configuration.
+
+<Note>
+  TailwindCSS 4 uses `@import` in CSS files instead of `tailwind.config.ts`. The config file is minimal.
+</Note>
+
+### PostCSS Configuration
+
+```javascript postcss.config.mjs
+export default {
+  plugins: {
+    '@tailwindcss/postcss': {},
+  },
+};
+```
+
+### CSS Entry Point
+
+Tailwind is imported via CSS:
+
+```css app/globals.css
+@import 'tailwindcss';
+
+/* Custom theme variables */
+@theme {
+  --color-primary: #1e40af;
+  --color-secondary: #7c3aed;
+}
+```
+
+---
+
+## ESLint Configuration
+
+### File: `eslint.config.mjs`
+
+Linting rules for code quality.
+
+```javascript eslint.config.mjs
+import { dirname } from "path";
+import { fileURLToPath } from "url";
+import { FlatCompat } from "@eslint/eslintrc";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const compat = new FlatCompat({
+  baseDirectory: __dirname,
+});
+
+const eslintConfig = [...compat.extends("next/core-web-vitals")];
+
+export default eslintConfig;
+```
+
+### Running ESLint
+
+```bash
+pnpm lint
+```
+
+<Tip>
+  ESLint automatically runs during `pnpm build`. Fix all errors before deploying.
+</Tip>
+
+---
+
+## Package Manager Configuration
+
+### Using pnpm
+
+The project uses **pnpm** for package management.
+
+**Why pnpm?**
+- ⚡ **Fast**: 2-3x faster than npm
+- 💾 **Efficient**: Uses hard links to save disk space
+- 🔒 **Strict**: Better dependency resolution
+
+### Lock File
+
+`pnpm-lock.yaml` tracks exact dependency versions.
+
+<Warning>
+  Always commit `pnpm-lock.yaml` to ensure consistent installs across environments.
+</Warning>
+
+### Common Commands
+
+<CodeGroup>
+```bash Install Dependencies
+pnpm install
+```
+
+```bash Add Package
+pnpm add <package-name>
+```
+
+```bash Add Dev Dependency
+pnpm add -D <package-name>
+```
+
+```bash Update Packages
+pnpm update
+```
+
+```bash Remove Package
+pnpm remove <package-name>
+```
+</CodeGroup>
+
+---
+
+## Dependency Management
+
+### Production Dependencies
+
+Key runtime dependencies:
+
+| Package | Version | Purpose |
+|---------|---------|----------|
+| `next` | 16.1.0 | React framework |
+| `react` | 19.2.3 | UI library |
+| `@supabase/supabase-js` | 2.89.0 | Database client |
+| `@tanstack/react-query` | 5.90.12 | Data fetching |
+| `@nivo/bar`, `@nivo/line` | 0.99.0 | Charts |
+| `framer-motion` | 12.23.26 | Animations |
+| `@vercel/analytics` | 1.6.1 | Analytics |
+
+### Development Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|----------|
+| `typescript` | 5.9.3 | Type checking |
+| `tailwindcss` | 4.1.18 | CSS framework |
+| `eslint` | 9.39.2 | Code linting |
+| `prettier` | 3.7.4 | Code formatting |
+
+<Tip>
+  Run `pnpm outdated` to check for package updates.
+</Tip>
+
+---
+
+## Build Configuration
+
+### Production Build
+
+```bash
+pnpm build
+```
+
+This command:
+1. Type-checks TypeScript
+2. Lints code with ESLint
+3. Compiles Next.js app
+4. Generates static pages
+5. Optimizes assets
+
+### Build Output
+
+Build artifacts are stored in `.next/`:
+
+```
+.next/
+├── cache/              # Build cache
+├── server/             # Server-side code
+├── static/             # Static assets
+└── types/              # Generated types
+```
+
+<Warning>
+  Never commit the `.next` directory. It's regenerated on each build.
+</Warning>
+
+---
+
+## Environment-Specific Configuration
+
+### Development
+
+```bash
+pnpm dev
+```
+
+**Features**:
+- Hot Module Replacement (HMR)
+- React Query Devtools
+- Verbose error messages
+- Source maps enabled
+
+### Production
+
+```bash
+pnpm build
+pnpm start
+```
+
+**Features**:
+- Minified code
+- No devtools
+- Optimized bundles
+- Server-side rendering
+
+---
+
+## Vercel Configuration
+
+### Automatic Detection
+
+Vercel automatically detects:
+- **Framework**: Next.js
+- **Build Command**: `pnpm build`
+- **Output Directory**: `.next`
+- **Install Command**: `pnpm install`
+
+### Environment Variables in Vercel
+
+<Steps>
+  <Step title="Open Project Settings">
+    Go to your Vercel project > Settings > Environment Variables
+  </Step>
+  
+  <Step title="Add Variables">
+    Add:
+    - `SUPABASE_URL` (Plain Text)
+    - `SUPABASE_ANON_KEY` (Plain Text)
+  </Step>
+  
+  <Step title="Select Environments">
+    Choose which environments to apply:
+    - ✅ Production
+    - ✅ Preview
+    - ✅ Development (optional)
+  </Step>
+  
+  <Step title="Redeploy">
+    Trigger a new deployment for changes to take effect.
+  </Step>
+</Steps>
+
+<Tip>
+  Use different Supabase projects for production and preview/development environments.
+</Tip>
+
+---
+
+## Configuration Troubleshooting
+
+### Environment Variables Not Loading
+
+**Problem**: App can't connect to Supabase.
+
+**Solutions**:
+1. Verify `.env.local` exists and has correct values
+2. Restart dev server after changing `.env.local`
+3. Check for typos in variable names
+4. Ensure no trailing spaces in values
+5. Variables must start with `NEXT_PUBLIC_` to be accessible in browser (Supabase keys don't need this)
+
+### TypeScript Path Alias Errors
+
+**Problem**: `Cannot find module '@/...'`
+
+**Solution**: Ensure `tsconfig.json` has:
+
+```json
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    }
+  }
+}
+```
+
+Restart TypeScript server in your IDE.
+
+### Build Failures
+
+**Problem**: `pnpm build` fails.
+
+**Solutions**:
+1. Clear build cache:
+   ```bash
+   rm -rf .next
+   pnpm build
+   ```
+2. Check for TypeScript errors:
+   ```bash
+   pnpm tsc --noEmit
+   ```
+3. Verify all dependencies installed:
+   ```bash
+   rm -rf node_modules pnpm-lock.yaml
+   pnpm install
+   ```
+
+---
+
+## Best Practices
+
+<Check>**DO**:</Check>
+- Keep `.env.local` out of version control
+- Use different credentials for dev/staging/production
+- Regularly update dependencies
+- Run `pnpm lint` before committing
+- Test builds locally before deploying
+
+<Warning>**DON'T**:</Warning>
+- Commit `.env.local` or `.env.production`
+- Use `service_role` key in client code
+- Modify `next.config.ts` without testing
+- Ignore TypeScript errors
+- Skip `pnpm install` after pulling changes
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Deployment" icon="rocket" href="/development/deployment">
+    Learn how to deploy to production
+  </Card>
+  <Card title="Mock Data" icon="database" href="/development/mock-data">
+    Understand the synthetic data structure
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore API endpoints
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/architecture/overview">
+    Deep dive into system design
+  </Card>
+</CardGroup>

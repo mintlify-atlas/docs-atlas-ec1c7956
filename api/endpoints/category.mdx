@@ -1,0 +1,471 @@
+---
+title: Get Category Data
+api: GET /api/category
+description: Retrieve detailed data for a specific statistical category and year
+---
+
+## Endpoint
+
+```
+GET /api/category?year={year}&category={category}
+```
+
+## Description
+
+Returns detailed data for a specific statistical category and year. This endpoint provides the same data as found in the `/api/statistics` endpoint but filtered to a single category.
+
+Use this endpoint when you need only one category instead of all statistics for a year.
+
+## Authentication
+
+No authentication required. This is a public endpoint.
+
+## Query Parameters
+
+<ParamField query="year" type="string" required>
+  The year to query. Must be either:
+  - A 4-digit year (e.g., "2024")
+  - The string "global" for all-time statistics
+</ParamField>
+
+<ParamField query="category" type="string" required>
+  The statistical category to retrieve. Must be one of the valid categories listed below.
+</ParamField>
+
+## Valid Categories
+
+The following categories are accepted:
+
+- `commonNameBySchool` - Most common name per school (global)
+- `commonNameBySchoolByYear` - Most common name per school for a year
+- `intro` - Introductory text for the year
+- `longestNames` - Longest names recorded
+- `mostConstantSchools` - Schools with most consistent participation
+- `namesDiversity` - Total unique names (global)
+- `namesDiversityByYear` - Unique names for a year
+- `newNamesByYear` - New names introduced in a year
+- `newSchoolsByYear` - New schools participating in a year
+- `outro` - Concluding text
+- `schoolsEvolution` - School participation evolution
+- `surnamesDiversity` - Total unique surnames (global)
+- `surnamesDiversityByYear` - Unique surnames for a year
+- `topNames` - Most popular names (global)
+- `topNamesByYear` - Most popular names for a year
+- `topSchools` - Top schools (global)
+- `topSchoolsByYear` - Top schools for a year
+- `topSurnames` - Most common surnames (global)
+- `topSurnamesByYear` - Most common surnames for a year
+- `totalParticipants` - Total participants (global)
+- `totalParticipantsByYear` - Total participants for a year
+
+## Response
+
+<ResponseField name="stats" type="array" required>
+  Array containing a single category data object with:
+  - `category` (string): Category identifier
+  - `public_data` (varies): Category-specific data
+  - `summary` (string): Human-readable summary in Spanish
+</ResponseField>
+
+### Success Response (200 OK)
+
+```json
+{
+  "stats": [
+    {
+      "category": "topNamesByYear",
+      "public_data": [
+        {"name": "Nora", "count": 98},
+        {"name": "Ane", "count": 88},
+        {"name": "Jon", "count": 85},
+        {"name": "Maddi", "count": 84}
+      ],
+      "summary": "Nora encabeza el ranking de 2025 con 98 participaciones..."
+    }
+  ]
+}
+```
+
+### Error Responses
+
+#### Missing Parameters (400 Bad Request)
+
+```json
+{
+  "error": "Parametros 'year' y 'category' son obligatorios"
+}
+```
+
+#### Invalid Category (400 Bad Request)
+
+```json
+{
+  "error": "Categoría inválida. Esa categoria no existe"
+}
+```
+
+#### Invalid Year Format (400 Bad Request)
+
+```json
+{
+  "error": "Formato de año inválido"
+}
+```
+
+#### Year Not Available (400 Bad Request)
+
+```json
+{
+  "error": "Año inválido. Años válidos: 2024, 2025, global, ..."
+}
+```
+
+#### Server Error (500 Internal Server Error)
+
+```json
+{
+  "error": "Error al obtener el estado del sistema",
+  "details": "<technical details>"
+}
+```
+
+## Examples
+
+### cURL
+
+```bash
+# Get top names for 2024
+curl "https://tamborradata.com/api/category?year=2024&category=topNamesByYear"
+
+# Get schools evolution (global)
+curl "https://tamborradata.com/api/category?year=global&category=schoolsEvolution"
+
+# URL encoded (required for spaces in values, though not used in current API)
+curl "https://tamborradata.com/api/category?year=2024&category=topNamesByYear"
+```
+
+### JavaScript (Fetch)
+
+```javascript
+async function getCategoryData(year, category) {
+  const params = new URLSearchParams({ year, category });
+  const response = await fetch(
+    `https://tamborradata.com/api/category?${params}`
+  );
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error);
+  }
+  
+  const data = await response.json();
+  return data.stats[0]; // Return the category object
+}
+
+// Usage
+const topNames = await getCategoryData('2024', 'topNamesByYear');
+console.log('Category:', topNames.category);
+console.log('Data:', topNames.public_data);
+console.log('Summary:', topNames.summary);
+```
+
+### JavaScript (Axios)
+
+```javascript
+const axios = require('axios');
+
+try {
+  const { data } = await axios.get(
+    'https://tamborradata.com/api/category',
+    {
+      params: {
+        year: '2024',
+        category: 'topNamesByYear'
+      }
+    }
+  );
+  
+  const categoryData = data.stats[0];
+  console.log('Top names:', categoryData.public_data);
+} catch (error) {
+  console.error('Error:', error.response?.data?.error);
+}
+```
+
+### Python
+
+```python
+import requests
+
+def get_category(year, category):
+    response = requests.get(
+        'https://tamborradata.com/api/category',
+        params={'year': year, 'category': category}
+    )
+    
+    if response.status_code == 200:
+        data = response.json()
+        return data['stats'][0]
+    else:
+        error = response.json()
+        raise Exception(error['error'])
+
+# Usage
+try:
+    data = get_category('2024', 'topNamesByYear')
+    print(f"Category: {data['category']}")
+    print(f"Top name: {data['public_data'][0]['name']}")
+    print(f"Summary: {data['summary']}")
+except Exception as e:
+    print(f"Error: {e}")
+```
+
+### TypeScript
+
+```typescript
+type CategoryData = {
+  category: string;
+  public_data: any;
+  summary: string;
+};
+
+type CategoryResponse = {
+  stats: CategoryData[];
+};
+
+async function getCategoryData(
+  year: string,
+  category: string
+): Promise<CategoryData> {
+  const params = new URLSearchParams({ year, category });
+  const response = await fetch(
+    `https://tamborradata.com/api/category?${params}`
+  );
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error);
+  }
+  
+  const data: CategoryResponse = await response.json();
+  return data.stats[0];
+}
+
+// Usage with specific type for top names
+type TopNameData = Array<{ name: string; count: number }>;
+
+async function getTopNames(year: string): Promise<TopNameData> {
+  const category = await getCategoryData(year, 'topNamesByYear');
+  return category.public_data as TopNameData;
+}
+
+const topNames = await getTopNames('2024');
+topNames.forEach(({ name, count }) => {
+  console.log(`${name}: ${count} participants`);
+});
+```
+
+## Implementation Details
+
+### Source Code Reference
+
+The endpoint is implemented in:
+- Route: `app/(backend)/api/category/route.ts:6`
+- Service: `app/(backend)/api/category/services/category.service.ts:5`
+- Repository: `app/(backend)/api/category/repositories/category.repo.ts`
+- Validation: `app/(backend)/api/category/dtos/category.schema.ts:5`
+
+### Data Flow
+
+1. Extract `year` and `category` query parameters
+2. Validate both parameters using `checkParams`:
+   - Check both are provided
+   - Validate category exists in `VALID_CATEGORIES`
+   - Validate year format (YYYY or "global")
+   - Verify year exists in database
+3. Query `statistics` table for specific year and category
+4. Return single category data in array format
+
+### Database Query
+
+The endpoint executes:
+
+```sql
+SELECT category, public_data, summary
+FROM statistics
+WHERE year = $1 AND category = $2;
+```
+
+## Use Cases
+
+### 1. Display Single Category Chart
+
+```javascript
+async function renderTopNamesChart(year) {
+  const data = await getCategoryData(year, 'topNamesByYear');
+  
+  const chartData = data.public_data.slice(0, 10).map(item => ({
+    label: item.name,
+    value: item.count
+  }));
+  
+  // Render with your charting library
+  renderChart('top-names-chart', chartData);
+}
+```
+
+### 2. Check Data Availability
+
+```javascript
+async function isCategoryAvailable(year, category) {
+  try {
+    const data = await getCategoryData(year, category);
+    return data.stats.length > 0;
+  } catch (error) {
+    return false;
+  }
+}
+
+const hasIntro = await isCategoryAvailable('2024', 'intro');
+console.log('Intro available:', hasIntro);
+```
+
+### 3. Get Summary Text
+
+```javascript
+async function getCategorySummary(year, category) {
+  const data = await getCategoryData(year, category);
+  return data.summary;
+}
+
+const summary = await getCategorySummary('2024', 'topNamesByYear');
+document.getElementById('summary').textContent = summary;
+```
+
+## Category Data Structures
+
+Different categories have different `public_data` structures:
+
+### Array of Objects with Counts
+
+```json
+"public_data": [
+  {"name": "Nora", "count": 98},
+  {"name": "Ane", "count": 88}
+]
+```
+
+Categories: `topNamesByYear`, `topNames`, `topSchoolsByYear`, `topSchools`, `topSurnamesByYear`, `topSurnames`
+
+### Array of Strings
+
+```json
+"public_data": ["Keity", "Aurkene", "Johsuar"]
+```
+
+Categories: `newNamesByYear`, `longestNames`
+
+### Single Number
+
+```json
+"public_data": 1950
+```
+
+Categories: `namesDiversity`, `surnamesDiversity`
+
+### School Evolution (Complex)
+
+```json
+"public_data": [
+  {
+    "total": 1568,
+    "school": "Amara Berri",
+    "years": [
+      {"year": 2018, "count": 214},
+      {"year": 2019, "count": 230}
+    ]
+  }
+]
+```
+
+Category: `schoolsEvolution`
+
+### Common Name by School
+
+```json
+"public_data": [
+  {"name": "Oihan", "school": "Aitor Ikastola"},
+  {"name": "Lucia", "school": "Aldapeta María Ikastetxea"}
+]
+```
+
+Categories: `commonNameBySchool`, `commonNameBySchoolByYear`
+
+## Notes
+
+<Note>
+  The response always returns an array (`stats`) even though it contains a single item. Always access `data.stats[0]`.
+</Note>
+
+<Warning>
+  Category names are case-sensitive. Use exact category names from the valid categories list.
+</Warning>
+
+<Info>
+  Some categories are year-specific (e.g., `topNamesByYear`) while others are global (e.g., `topNames`). Using the wrong scope may return no data.
+</Info>
+
+## Performance
+
+- **Response Time**: < 100ms (typically)
+- **Payload Size**: 1-50 KB (varies by category)
+- **Database Query**: Indexed query on year and category
+- **Caching**: Safe to cache for 24 hours
+
+## Related Endpoints
+
+- [GET /api/statistics](/api/endpoints/statistics) - Get all categories at once
+- [GET /api/years](/api/endpoints/years) - Get available years
+
+## Error Handling
+
+```javascript
+async function fetchCategorySafely(year, category) {
+  try {
+    // Validate parameters client-side
+    const validCategories = [
+      'topNamesByYear', 'topNames', 'schoolsEvolution',
+      // ... add all valid categories
+    ];
+    
+    if (!validCategories.includes(category)) {
+      throw new Error(`Invalid category: ${category}`);
+    }
+    
+    if (year !== 'global' && !/^\d{4}$/.test(year)) {
+      throw new Error('Invalid year format');
+    }
+    
+    const params = new URLSearchParams({ year, category });
+    const response = await fetch(
+      `https://tamborradata.com/api/category?${params}`
+    );
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error);
+    }
+    
+    const data = await response.json();
+    
+    if (!data.stats || data.stats.length === 0) {
+      throw new Error('No data available for this category');
+    }
+    
+    return data.stats[0];
+  } catch (error) {
+    console.error('Error fetching category:', error);
+    throw error;
+  }
+}
+```

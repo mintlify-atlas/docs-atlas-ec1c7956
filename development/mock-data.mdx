@@ -1,0 +1,624 @@
+---
+title: Mock Data Documentation
+description: Understanding the synthetic data structure and how to work with it
+icon: database
+---
+
+# Mock Data Documentation
+
+TamborraData includes comprehensive synthetic data for local development and testing. This guide explains the structure, contents, and how to work with the mock data.
+
+<Info>
+  All mock data is **completely fictional** and generated for development purposes only. Names, schools, and statistics do not represent real individuals or data.
+</Info>
+
+---
+
+## Overview
+
+The `mocked_data/` directory contains everything needed to run TamborraData locally:
+
+```
+mocked_data/
+├── tamborradata_schema.sql   # Complete database schema with RLS
+├── statistics.csv             # Statistical data (3 years)
+└── participants.csv           # 100 fictional participants
+```
+
+### Why Mock Data?
+
+<CardGroup cols={2}>
+  <Card title="Local Development" icon="laptop-code">
+    Work without connection to production database
+  </Card>
+  <Card title="Testing" icon="vial">
+    Consistent data for automated tests
+  </Card>
+  <Card title="Onboarding" icon="user-plus">
+    New contributors can start immediately
+  </Card>
+  <Card title="Demonstration" icon="presentation">
+    Show functionality without exposing real data
+  </Card>
+</CardGroup>
+
+---
+
+## Database Schema
+
+### File: `tamborradata_schema.sql`
+
+This SQL file creates the complete database structure with all tables, views, and security policies.
+
+### Tables
+
+#### 1. `statistics` Table
+
+Stores aggregated statistics by year and category.
+
+```sql
+CREATE TABLE statistics (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  category text NOT NULL,          -- e.g., 'participation', 'top_names'
+  scope text NOT NULL,              -- e.g., 'general', 'boys', 'girls'
+  year text NOT NULL,               -- e.g., '2024', '2025', 'global'
+  public_data jsonb,                -- Public data (limited)
+  full_data jsonb,                  -- Complete data (expanded)
+  summary text,                     -- Textual description
+  created_at timestamp DEFAULT now() NOT NULL,
+  UNIQUE (category, scope, year)
+);
+```
+
+**Key Columns:**
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `category` | `text` | Statistic type (participation, top_names, top_schools, etc.) |
+| `scope` | `text` | Scope (general, boys, girls, comparison) |
+| `year` | `text` | Year or 'global' for aggregated data |
+| `public_data` | `jsonb` | Summary data for UI display |
+| `full_data` | `jsonb` | Expanded data for detail views |
+
+**Example `public_data` structure:**
+
+```json
+{
+  "value": 3245,
+  "label": "Participantes totales",
+  "icon": "users",
+  "trend": {
+    "direction": "up",
+    "percentage": 5.2,
+    "compared_to": "2023"
+  }
+}
+```
+
+#### 2. `available_years` Table
+
+Lists years with available data.
+
+```sql
+CREATE TABLE available_years (
+  year text UNIQUE PRIMARY KEY,
+  is_ready boolean DEFAULT FALSE NOT NULL,
+  created_at timestamp DEFAULT now() NOT NULL,
+  updated_at timestamptz DEFAULT now() NOT NULL
+);
+```
+
+**Mock Data Includes:**
+
+| Year | Status |
+|------|--------|
+| 2024 | ✅ Ready |
+| 2025 | ✅ Ready |
+| global | ✅ Ready (aggregated historical) |
+
+#### 3. `participants` Table
+
+Individual participants in the Tamborrada.
+
+```sql
+CREATE TABLE participants (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,               -- Full name
+  school text NOT NULL,             -- School/company
+  article_date text NOT NULL,       -- Publication date
+  year integer NOT NULL,            -- Participation year
+  url_id uuid NOT NULL,             -- Unique URL identifier
+  created_at timestamp DEFAULT now() NOT NULL,
+  UNIQUE (name, school, article_date)
+);
+```
+
+**Unique Constraint**: Prevents duplicates of (name + school + date).
+
+#### 4. `sys_status` Table
+
+System status (for update mode).
+
+```sql
+CREATE TABLE sys_status (
+  id integer PRIMARY KEY DEFAULT 1,
+  is_updating boolean DEFAULT FALSE NOT NULL,
+  updated_at timestamptz DEFAULT now() NOT NULL,
+  notes text
+);
+```
+
+**Singleton Pattern**: Only one row exists with `id = 1`.
+
+<Note>
+  The `sys_status` table controls the "updating mode" banner. When `is_updating = true`, the site shows a maintenance message. See [isUpdating system documentation](/architecture/isupdating) for details.
+</Note>
+
+#### 5. `available_companies_view` View
+
+View for retrieving available schools.
+
+```sql
+CREATE OR REPLACE VIEW available_companies_view
+WITH (security_invoker = on) AS
+SELECT DISTINCT school AS company_names
+FROM participants
+ORDER BY company_names;
+```
+
+**Usage**: Powers the school autocomplete in participant search.
+
+---
+
+## Row Level Security (RLS)
+
+All tables have Row Level Security enabled with read-only policies:
+
+```sql
+-- Enable RLS
+ALTER TABLE statistics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE available_years ENABLE ROW LEVEL SECURITY;
+ALTER TABLE participants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sys_status ENABLE ROW LEVEL SECURITY;
+
+-- Read-only policies for anonymous users
+CREATE POLICY "Anon read access on statistics"
+ON statistics FOR SELECT TO anon USING (true);
+
+CREATE POLICY "Anon read access on available_years"
+ON available_years FOR SELECT TO anon USING (true);
+
+CREATE POLICY "Anon read access on participants"
+ON participants FOR SELECT TO anon USING (true);
+
+CREATE POLICY "Anon read access on sys_status"
+ON sys_status FOR SELECT TO anon USING (true);
+```
+
+<Warning>
+  Anonymous users can **only read** data. They cannot insert, update, or delete records. This is critical for data integrity and security.
+</Warning>
+
+---
+
+## Statistics Data
+
+### File: `statistics.csv`
+
+Contains sample statistics for:
+- **2024** (complete year)
+- **2025** (complete year)  
+- **global** (historical aggregate)
+
+### Statistical Categories
+
+<AccordionGroup>
+  <Accordion title="Participation Statistics" icon="users">
+    **Category**: `participation`  
+    **Scopes**: `general`, `boys`, `girls`
+    
+    Tracks total participants and gender breakdown.
+    
+    **Example public_data**:
+    ```json
+    {
+      "value": 3245,
+      "label": "Participantes totales",
+      "icon": "users",
+      "trend": {
+        "direction": "up",
+        "percentage": 5.2,
+        "compared_to": "2023"
+      }
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Top Names" icon="award">
+    **Category**: `top_names`  
+    **Scopes**: `general`, `boys`, `girls`
+    
+    Most popular participant names.
+    
+    **Example structure**:
+    ```json
+    {
+      "names": [
+        { "name": "Jon", "count": 156 },
+        { "name": "Ane", "count": 142 },
+        { "name": "Iker", "count": 138 }
+      ]
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Top Schools" icon="school">
+    **Category**: `top_schools`  
+    **Scope**: `general`
+    
+    Schools with most participants.
+    
+    **Example structure**:
+    ```json
+    {
+      "schools": [
+        { "school": "Colegio San Ignacio", "count": 245 },
+        { "school": "Instituto Santa Teresa", "count": 198 }
+      ]
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Year Comparison" icon="chart-line">
+    **Category**: `comparison`  
+    **Scope**: `general`
+    
+    Historical trends and year-over-year comparisons.
+    
+    Used to generate line charts showing participation evolution.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Participants Data
+
+### File: `participants.csv`
+
+Contains **100 fictional participants** distributed across 5 schools.
+
+### Distribution by School
+
+| School | Participants |
+|--------|-------------|
+| Compañia de prueba | 20 |
+| Colegio San Ignacio | 20 |
+| Instituto Santa Teresa | 20 |
+| Escuela Arcoiris | 20 |
+| Colegio Nueva Era | 20 |
+
+### Distribution by Year
+
+| Year | Participants |
+|------|-------------|
+| 2018 | 10 |
+| 2019 | 10 |
+| 2020 | 10 |
+| 2021 | 10 |
+| 2022 | 10 |
+| 2023 | 10 |
+| 2024 | 10 |
+| 2025 | 30 |
+
+### CSV Structure
+
+```csv
+id,name,school,article_date,year,url_id,created_at
+10000000-0000-0000-0000-000000000001,Pepito Garcia Lopez,Compañia de prueba,2023/01/20,2023,10000000-0000-0000-0000-000000000001,2025-11-25 17:29:04.542594
+```
+
+### Column Details
+
+| Column | Example | Description |
+|--------|---------|-------------|
+| `id` | `10000000-...` | UUID primary key |
+| `name` | `Pepito Garcia Lopez` | Full fictional name |
+| `school` | `Compañia de prueba` | School/company name |
+| `article_date` | `2023/01/20` | Publication date |
+| `year` | `2023` | Participation year |
+| `url_id` | `10000000-...` | UUID for URL generation |
+| `created_at` | `2025-11-25...` | Timestamp |
+
+### Example Participants
+
+<CodeGroup>
+```txt Compañia de prueba
+Pepito Garcia Lopez
+Juan Rodriguez Martinez  
+Carlos Fernandez Gomez
+Miguel Angel Ruiz Torres
+```
+
+```txt Colegio San Ignacio
+Mikel Etxeberria Agirre
+Andoni Garitano Zubizarreta
+Aitor Mendizabal Larrea  
+Gorka Iturriaga Etxebarria
+```
+
+```txt Instituto Santa Teresa
+Sofia Hernandez Ramirez
+Lucia Martinez Gonzalez
+Paula Rodriguez Sanchez
+Maria Garcia Fernandez
+```
+</CodeGroup>
+
+<Warning>
+  **All names are fictional**. They were generated using random name generators and do NOT correspond to real people. Any resemblance is purely coincidental.
+</Warning>
+
+---
+
+## Importing Mock Data
+
+Follow these steps to import mock data into your Supabase database:
+
+<Steps>
+  <Step title="Execute schema">
+    In Supabase SQL Editor, paste and run `tamborradata_schema.sql`.
+  </Step>
+  
+  <Step title="Import participants">
+    Go to Table Editor > participants > Insert > Import CSV  
+    Select `participants.csv` and import.
+  </Step>
+  
+  <Step title="Import statistics">
+    Go to Table Editor > statistics > Insert > Import CSV  
+    Select `statistics.csv` and import.
+  </Step>
+  
+  <Step title="Verify data">
+    Check that:
+    - `participants` has ~100 rows
+    - `statistics` has multiple rows
+    - `available_years` has 2024, 2025, global
+    - `sys_status` has 1 row with `is_updating = false`
+  </Step>
+</Steps>
+
+<Tip>
+  You can also use SQL COPY command for bulk import if you're comfortable with PostgreSQL:
+  
+  ```sql
+  COPY participants(id, name, school, article_date, year, url_id, created_at)
+  FROM '/path/to/participants.csv'
+  DELIMITER ','
+  CSV HEADER;
+  ```
+</Tip>
+
+---
+
+## Working with Mock Data
+
+### Testing Participant Search
+
+Use these known participants for testing the search functionality:
+
+<CodeGroup>
+```bash By Name
+# Search for specific participant
+GET /api/participants?name=Pepito%20Garcia%20Lopez
+```
+
+```bash By School
+# Get all from a school
+GET /api/participants?company=Compañia%20de%20prueba
+```
+
+```bash Combined Search
+# Name + School
+GET /api/participants?name=Pepito%20Garcia%20Lopez&company=Compañia%20de%20prueba
+```
+</CodeGroup>
+
+### Testing Statistics API
+
+<CodeGroup>
+```bash Get Year Statistics
+# Get all statistics for 2024
+GET /api/statistics?year=2024
+```
+
+```bash Get Category Data
+# Get expanded top names for 2024
+GET /api/category?year=2024&category=top_names&scope=general
+```
+
+```bash Get Available Years
+# List all available years
+GET /api/years
+```
+</CodeGroup>
+
+### Automated Testing
+
+Mock data is ideal for automated tests:
+
+```typescript
+// Example test using mock data
+import { describe, it, expect } from 'vitest';
+
+describe('Participant Search', () => {
+  it('finds participant by exact name', async () => {
+    const response = await fetch(
+      '/api/participants?name=Pepito Garcia Lopez&company=Compañia de prueba'
+    );
+    const data = await response.json();
+    
+    expect(data.participants).toHaveLength(1);
+    expect(data.participants[0].name).toBe('Pepito Garcia Lopez');
+    expect(data.participants[0].school).toBe('Compañia de prueba');
+  });
+  
+  it('returns empty array for non-existent participant', async () => {
+    const response = await fetch('/api/participants?name=NonExistent');
+    const data = await response.json();
+    
+    expect(data.participants).toHaveLength(0);
+  });
+});
+```
+
+---
+
+## Limitations
+
+### Data Simplification
+
+Mock data is simpler than production:
+
+| Aspect | Mock Data | Production |
+|--------|-----------|------------|
+| **Participants** | 100 | ~5,000 |
+| **Schools** | 5 | ~50 |
+| **Years** | 2018-2025 | 2018-2025 |
+| **Names** | Fictional | Real (anonymized) |
+| **Statistics** | Basic | Complex |
+| **Sensitive Data** | No | Yes (protected) |
+
+### Incomplete Statistics
+
+Some categories have minimal data:
+- **Top names**: Only 10 names per category
+- **Top schools**: Only 5 schools
+- **Comparisons**: Only 3 years
+
+<Note>
+  Mock data is designed to demonstrate functionality, not to replicate the full complexity of production data.
+</Note>
+
+### Predictable IDs
+
+UUIDs follow a pattern for easier debugging:
+
+```
+10000000-0000-0000-0000-000000000001  # Compañia de prueba
+20000000-0000-0000-0000-000000000001  # Colegio San Ignacio
+30000000-0000-0000-0000-000000000001  # Instituto Santa Teresa
+40000000-0000-0000-0000-000000000001  # Escuela Arcoiris
+50000000-0000-0000-0000-000000000001  # Colegio Nueva Era
+```
+
+**Reason**: Facilitates debugging and makes test assertions easier.
+
+---
+
+## Generating Additional Mock Data
+
+If you need more synthetic data, you can generate it programmatically:
+
+<CodeGroup>
+```python Python Script
+import csv
+import uuid
+from datetime import datetime
+import random
+
+fake_names = [
+    "Juan Perez Rodriguez",
+    "Maria Garcia Martinez",
+    "Carlos Lopez Sanchez",
+    # Add more names...
+]
+
+schools = [
+    "Colegio Test A",
+    "Colegio Test B",
+    "Colegio Test C",
+]
+
+years = [2023, 2024, 2025]
+
+with open('participants_extra.csv', 'w', newline='') as f:
+    writer = csv.writer(f)
+    writer.writerow(['id', 'name', 'school', 'article_date', 'year', 'url_id', 'created_at'])
+    
+    for i, name in enumerate(fake_names):
+        year = random.choice(years)
+        writer.writerow([
+            str(uuid.uuid4()),
+            name,
+            schools[i % len(schools)],
+            f"{year}/01/20",
+            year,
+            str(uuid.uuid4()),
+            datetime.now().isoformat()
+        ])
+```
+
+```javascript JavaScript/Node.js
+const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
+
+const fakeNames = [
+  'Juan Perez Rodriguez',
+  'Maria Garcia Martinez',
+  // Add more...
+];
+
+const schools = [
+  'Colegio Test A',
+  'Colegio Test B',
+];
+
+const csv = fakeNames.map((name, i) => {
+  const year = 2024;
+  return [
+    uuidv4(),
+    name,
+    schools[i % schools.length],
+    `${year}/01/20`,
+    year,
+    uuidv4(),
+    new Date().toISOString()
+  ].join(',');
+}).join('\n');
+
+const header = 'id,name,school,article_date,year,url_id,created_at';
+fs.writeFileSync('participants_extra.csv', header + '\n' + csv);
+```
+</CodeGroup>
+
+<Tip>
+  For generating realistic Spanish names, consider using libraries like:
+  - **Python**: `faker` with Spanish locale
+  - **JavaScript**: `@faker-js/faker` with `es` locale
+  
+  ```python
+  from faker import Faker
+  fake = Faker('es_ES')
+  name = fake.name()  # Generates Spanish name
+  ```
+</Tip>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Setup Guide" icon="rocket" href="/development/setup">
+    Return to local development setup
+  </Card>
+  <Card title="Configuration" icon="gear" href="/development/configuration">
+    Learn about environment variables
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore API endpoints
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/architecture/overview">
+    Understand the system architecture
+  </Card>
+</CardGroup>

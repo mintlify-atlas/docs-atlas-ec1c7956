@@ -1,0 +1,652 @@
+---
+title: 'Frontend Architecture'
+description: 'Next.js App Router, Server Components, and React Query patterns'
+icon: 'react'
+---
+
+# Frontend Architecture
+
+TamborraData's frontend is built with **Next.js 16 App Router** and uses **React Server Components** as the default rendering strategy, with selective use of Client Components for interactivity.
+
+## Technology Stack
+
+<CardGroup cols={2}>
+  <Card title="Next.js 16" icon="n">
+    App Router, Server Components, and API Routes
+  </Card>
+  <Card title="React 19" icon="react">
+    Server Components, Client Components, and hooks
+  </Card>
+  <Card title="TanStack Query" icon="infinity">
+    Server state management and caching
+  </Card>
+  <Card title="TailwindCSS" icon="paintbrush">
+    Utility-first CSS framework
+  </Card>
+</CardGroup>
+
+## Server Components by Default
+
+TamborraData follows the **Server Components First** principle:
+
+<CodeGroup>
+```tsx Server Component (Default)
+// app/(frontend)/statistics/[year]/page.tsx
+import type { Metadata } from 'next';
+import { YearPageContent } from './YearPageContent';
+
+// ✅ No 'use client' = Server Component
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ year: string }>;
+}): Promise<Metadata> {
+  const { year } = await params;
+  
+  return {
+    title: `Estadísticas de la Tamborrada Infantil ${year}`,
+    description: `Análisis de la Tamborrada Infantil ${year}`,
+    alternates: {
+      canonical: `https://tamborradata.com/statistics/${year}`,
+    },
+  };
+}
+
+export default async function YearPage({ 
+  params 
+}: { 
+  params: Promise<{ year: string }> 
+}) {
+  const { year } = await params;
+
+  return (
+    <>
+      <YearStructuredData year={year} />
+      <YearPageContent />
+    </>
+  );
+}
+```
+
+```tsx Client Component (Selective)
+// components/InteractiveChart.tsx
+'use client'; // ✅ Only when necessary
+
+import { useState } from 'react';
+import { useStatisticsQuery } from '@/hooks/query/useStatisticsQuery';
+
+export function InteractiveChart({ year }: { year: string }) {
+  const [category, setCategory] = useState('all');
+  const { data, isLoading } = useStatisticsQuery(year);
+
+  return (
+    <div>
+      <select onChange={(e) => setCategory(e.target.value)}>
+        <option value="all">All Categories</option>
+      </select>
+      <Chart data={data} category={category} />
+    </div>
+  );
+}
+```
+</CodeGroup>
+
+## When to Use Client Components
+
+Only use `'use client'` when you need:
+
+<AccordionGroup>
+  <Accordion title="React Hooks" icon="hook">
+    - `useState`, `useEffect`, `useReducer`
+    - Custom hooks that use state
+    - React Query hooks (`useQuery`, `useMutation`)
+    
+    ```tsx
+    'use client';
+    import { useState } from 'react';
+    
+    export function Counter() {
+      const [count, setCount] = useState(0);
+      return <button onClick={() => setCount(count + 1)}>{count}</button>;
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Event Handlers" icon="mouse-pointer">
+    - `onClick`, `onChange`, `onSubmit`
+    - User interactions
+    - Form handling
+    
+    ```tsx
+    'use client';
+    
+    export function SearchForm() {
+      const handleSubmit = (e: FormEvent) => {
+        e.preventDefault();
+        // Handle form submission
+      };
+      
+      return <form onSubmit={handleSubmit}>...</form>;
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Browser APIs" icon="window">
+    - `window`, `document`, `localStorage`
+    - Geolocation, Web APIs
+    - Third-party browser libraries
+    
+    ```tsx
+    'use client';
+    import { useEffect, useState } from 'react';
+    
+    export function WindowSize() {
+      const [width, setWidth] = useState(0);
+      
+      useEffect(() => {
+        setWidth(window.innerWidth);
+      }, []);
+      
+      return <div>Width: {width}px</div>;
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Animation Libraries" icon="sparkles">
+    - Framer Motion
+    - React Spring
+    - GSAP with React
+    
+    ```tsx
+    'use client';
+    import { motion } from 'framer-motion';
+    
+    export function AnimatedCard() {
+      return (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+        >
+          Content
+        </motion.div>
+      );
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+  **Avoid unnecessary Client Components!** Each `'use client'` directive adds JavaScript to the client bundle and disables server-side optimizations.
+</Warning>
+
+## React Query for State Management
+
+TamborraData uses **TanStack React Query** as the single source of truth for server state:
+
+<Tabs>
+  <Tab title="Provider Setup">
+    ```tsx
+    // app/(frontend)/providers/ReactQueryProvider.tsx
+    'use client';
+    import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+    import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+
+    export const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          staleTime: 5 * 60 * 1000,      // 5 minutes
+          gcTime: 30 * 60 * 1000,        // 30 minutes
+          retry: 1,
+          refetchOnWindowFocus: false,
+          refetchOnReconnect: false,
+        },
+      },
+    });
+
+    export function ReactQueryProvider({ children }: { children: React.ReactNode }) {
+      return (
+        <QueryClientProvider client={queryClient}>
+          {children}
+          <ReactQueryDevtools initialIsOpen={false} />
+        </QueryClientProvider>
+      );
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Query Hook">
+    ```tsx
+    // hooks/query/useStatisticsQuery.ts
+    import { useQuery } from '@tanstack/react-query';
+    import { fetchStatistics } from '@/services/fetchStatistics';
+    import { queryKeys } from '@/lib/queryKeys';
+
+    export function useStatisticsQuery<T>(year: string) {
+      return useQuery({
+        queryKey: queryKeys.statistics(year),
+        queryFn: ({ signal }) => fetchStatistics<T>(year, signal),
+        enabled: Boolean(year),
+        staleTime: Infinity,
+        gcTime: Infinity,
+        retry: 0,
+        // Refetch if system is updating
+        refetchOnWindowFocus: (query) => 
+          query.state.data?.isUpdating === true,
+        refetchInterval: (query) => 
+          query.state.data?.isUpdating ? 3000 : false,
+      });
+    }
+    ```
+  </Tab>
+  
+  <Tab title="HTTP Service">
+    ```tsx
+    // services/fetchStatistics.ts
+    export async function fetchStatistics<T>(
+      year: string, 
+      signal: AbortSignal
+    ): Promise<T> {
+      const response = await fetch(
+        `/api/statistics?year=${year}`, 
+        { signal }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const error: any = new Error(data?.error || 'Unknown error');
+        error.status = response.status;
+        throw error;
+      }
+
+      return data as T;
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Usage in Component">
+    ```tsx
+    // components/StatsTable.tsx
+    'use client';
+    import { useStatisticsQuery } from '@/hooks/query/useStatisticsQuery';
+
+    export function StatsTable({ year }: { year: string }) {
+      const { data, isLoading, error } = useStatisticsQuery(year);
+
+      if (isLoading) return <LoadingSkeleton />;
+      if (error) return <ErrorMessage error={error} />;
+
+      return (
+        <table>
+          {/* Render statistics */}
+        </table>
+      );
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## State Management Strategy
+
+<Info>
+  **Principle:** Use React Query for server state, use native React hooks for UI state.
+</Info>
+
+<Tabs>
+  <Tab title="Server State (React Query)">
+    Use React Query for:
+    - API data (statistics, participants, years)
+    - Cached responses
+    - Background refetching
+    - Loading/error states
+    
+    ```tsx
+    // ✅ Server state with React Query
+    const { data: statistics } = useStatisticsQuery('2024');
+    const { data: participants } = useParticipantsQuery('John');
+    const { data: years } = useYearsQuery();
+    ```
+  </Tab>
+  
+  <Tab title="UI State (React Hooks)">
+    Use useState/useReducer for:
+    - Form inputs
+    - Modal open/closed
+    - Selected filters
+    - Animations
+    
+    ```tsx
+    // ✅ UI state with useState
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedCategory, setSelectedCategory] = useState('all');
+    const [searchQuery, setSearchQuery] = useState('');
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  **Don't use Redux or Zustand!** React Query handles server state better than global state managers. For UI state, native React hooks are sufficient.
+</Warning>
+
+## Project Structure
+
+Frontend code is organized by feature:
+
+```
+app/(frontend)/
+├── statistics/                    # Statistics feature
+│   ├── page.tsx                   # Main page (Server Component)
+│   ├── [year]/
+│   │   ├── page.tsx               # Dynamic year page
+│   │   ├── layout.tsx             # Year-specific layout
+│   │   ├── components/            # Year-specific components
+│   │   │   ├── TopNames/
+│   │   │   │   ├── TopNames.tsx
+│   │   │   │   ├── components/
+│   │   │   │   └── hooks/
+│   │   │   └── TopSchools/
+│   │   ├── hooks/                 # Year-specific hooks
+│   │   │   └── useCategory.tsx
+│   │   └── YearPageContent.tsx
+│   ├── global/                    # Global statistics
+│   │   └── page.tsx
+│   └── components/                # Shared statistics components
+│       ├── StatsWrapper.tsx
+│       ├── ErrorPage.tsx
+│       └── loaders/
+├── search/                        # Search feature
+│   ├── page.tsx
+│   ├── components/
+│   │   ├── SearchCard/
+│   │   ├── Hero/
+│   │   └── FAQs/
+│   └── hooks/
+│       ├── useParticipants.ts
+│       └── useCompanies.ts
+├── components/                    # Shared components
+│   ├── Header/
+│   ├── SearchParticipant/
+│   └── ExploreStatistics/
+├── hooks/                         # Shared hooks
+│   └── query/                     # React Query hooks
+│       ├── useStatisticsQuery.ts
+│       ├── useParticipantsQuery.ts
+│       ├── useYearsQuery.ts
+│       └── useCompaniesQuery.ts
+├── services/                      # HTTP services
+│   ├── fetchStatistics.ts
+│   ├── fetchParticipants.ts
+│   ├── fetchYears.ts
+│   └── fetchCompanies.ts
+├── lib/                           # Utilities
+│   └── queryKeys.ts               # React Query keys
+├── providers/                     # Context providers
+│   └── ReactQueryProvider.tsx
+├── page.tsx                       # Homepage
+└── layout.tsx                     # Root layout
+```
+
+## File Naming Conventions
+
+| File Type | Convention | Example |
+|-----------|-----------|----------|
+| **Pages** | `page.tsx` | `statistics/page.tsx` |
+| **Layouts** | `layout.tsx` | `statistics/layout.tsx` |
+| **Components** | `PascalCase.tsx` | `TopNames.tsx` |
+| **Hooks** | `use*.ts(x)` | `useStatisticsQuery.ts` |
+| **Services** | `fetch*.ts` | `fetchStatistics.ts` |
+| **Utils** | `camelCase.ts` | `groupBy.ts` |
+| **Types** | `*.types.ts` or `index.ts` | `statistics.types.ts` |
+
+## Component Patterns
+
+<Tabs>
+  <Tab title="Server Component Page">
+    ```tsx
+    // app/(frontend)/statistics/[year]/page.tsx
+    import type { Metadata } from 'next';
+    import { YearPageContent } from './YearPageContent';
+    import { YearStructuredData } from './YearStructuredData';
+
+    // Generate metadata for SEO
+    export async function generateMetadata({
+      params,
+    }: {
+      params: Promise<{ year: string }>;
+    }): Promise<Metadata> {
+      const { year } = await params;
+      
+      return {
+        title: `Statistics ${year}`,
+        description: `Analysis for ${year}`,
+      };
+    }
+
+    // Server Component - no 'use client'
+    export default async function YearPage({ 
+      params 
+    }: { 
+      params: Promise<{ year: string }> 
+    }) {
+      const { year } = await params;
+
+      return (
+        <>
+          <YearStructuredData year={year} />
+          <YearPageContent />
+        </>
+      );
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Client Component with Query">
+    ```tsx
+    // components/TopNames/TopNames.tsx
+    'use client';
+    import { useTopNamesQuery } from './hooks/useTopNames';
+    import { TopNamesTable } from './components/TopNamesTable';
+    import { TopNamesChart } from './components/TopNamesChart';
+
+    export function TopNames({ year }: { year: string }) {
+      const { data, isLoading, error } = useTopNamesQuery(year);
+
+      if (isLoading) return <LoadingTable />;
+      if (error) return <ErrorMessage />;
+      if (!data) return null;
+
+      return (
+        <div>
+          <h2>Top Names {year}</h2>
+          <TopNamesTable data={data} />
+          <TopNamesChart data={data} />
+        </div>
+      );
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Custom Hook">
+    ```tsx
+    // hooks/useTopNames.ts
+    import { useMemo } from 'react';
+    import { useStatisticsQuery } from '@/hooks/query/useStatisticsQuery';
+
+    export function useTopNamesQuery(year: string) {
+      const { data, ...rest } = useStatisticsQuery(year);
+
+      const topNames = useMemo(() => {
+        if (!data?.statistics) return null;
+        return data.statistics['top-names']?.public_data || [];
+      }, [data]);
+
+      return {
+        data: topNames,
+        ...rest,
+      };
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Shared Component">
+    ```tsx
+    // components/LoadingTable.tsx
+    export function LoadingTable() {
+      return (
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded mb-4" />
+          <div className="h-64 bg-gray-200 rounded" />
+        </div>
+      );
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Performance Optimizations
+
+<AccordionGroup>
+  <Accordion title="Server Components" icon="server">
+    - **Zero JS by default:** Server Components ship no JavaScript to the client
+    - **Direct database access:** Can query databases directly (though we use API routes)
+    - **Streaming:** Can stream content as it's ready
+    - **SEO-friendly:** Fully rendered HTML sent to browser
+    
+    **Example:** `app/(frontend)/statistics/[year]/page.tsx:46`
+  </Accordion>
+
+  <Accordion title="React Query Caching" icon="database">
+    - **Stale time:** Data considered fresh for 5 minutes
+    - **Garbage collection:** Cache cleared after 30 minutes
+    - **Deduplication:** Multiple components requesting same data only trigger one request
+    - **Background refetch:** Stale data refetched in background
+    
+    **Configuration:** `app/(frontend)/providers/ReactQueryProvider.tsx:6`
+  </Accordion>
+
+  <Accordion title="Code Splitting" icon="scissors">
+    - **Automatic:** Next.js automatically splits code by route
+    - **Dynamic imports:** Use `dynamic()` for heavy components
+    - **Client boundaries:** Each `'use client'` is a split point
+    
+    ```tsx
+    import dynamic from 'next/dynamic';
+    
+    const HeavyChart = dynamic(() => import('./HeavyChart'), {
+      loading: () => <LoadingChart />,
+      ssr: false, // Don't render on server if it uses browser APIs
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Image Optimization" icon="image">
+    - **Next.js Image:** Automatic optimization and lazy loading
+    - **WebP format:** Modern format with better compression
+    - **Responsive images:** Serve appropriate size for device
+    
+    ```tsx
+    import Image from 'next/image';
+    
+    <Image
+      src="/hero.webp"
+      alt="Tamborradata"
+      width={1200}
+      height={600}
+      priority // Load eagerly for above-the-fold images
+    />
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## SEO Best Practices
+
+TamborraData implements comprehensive SEO:
+
+<Tabs>
+  <Tab title="Metadata">
+    ```tsx
+    // Every page exports generateMetadata
+    export async function generateMetadata({ params }): Promise<Metadata> {
+      return {
+        title: 'Page Title',
+        description: 'Page description for search engines',
+        alternates: {
+          canonical: 'https://tamborradata.com/page',
+        },
+        openGraph: {
+          title: 'OG Title',
+          description: 'OG Description',
+          url: 'https://tamborradata.com/page',
+          type: 'article',
+          images: [{ url: '/og-image.webp' }],
+        },
+        twitter: {
+          card: 'summary_large_image',
+          title: 'Twitter Title',
+          description: 'Twitter Description',
+        },
+      };
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Structured Data">
+    ```tsx
+    // Every page has structured data component
+    export function YearStructuredData({ year }: { year: string }) {
+      const structuredData = {
+        '@context': 'https://schema.org',
+        '@type': 'Dataset',
+        name: `Tamborrada Infantil ${year} Statistics`,
+        description: `Statistical analysis of participants in ${year}`,
+        url: `https://tamborradata.com/statistics/${year}`,
+        temporalCoverage: year,
+      };
+
+      return (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(structuredData),
+          }}
+        />
+      );
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Sitemap">
+    ```tsx
+    // app/sitemap.ts
+    import { MetadataRoute } from 'next';
+
+    export default function sitemap(): MetadataRoute.Sitemap {
+      return [
+        {
+          url: 'https://tamborradata.com',
+          lastModified: new Date(),
+          changeFrequency: 'yearly',
+          priority: 1,
+        },
+        {
+          url: 'https://tamborradata.com/statistics/2024',
+          lastModified: new Date(),
+          changeFrequency: 'monthly',
+          priority: 0.8,
+        },
+      ];
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Backend" icon="server" href="./backend">
+    Learn about API Routes, Services, and Repositories
+  </Card>
+  <Card title="Database" icon="database" href="./database">
+    Explore PostgreSQL schema and RLS policies
+  </Card>
+</CardGroup>
